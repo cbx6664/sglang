@@ -12,6 +12,7 @@ def get_engine_instance():
         model_path="/scratch/bingxche/deepseek-v3",
         tensor_parallel_size=8,
         trust_remote_code=True,
+        skip_tokenizer_init=True,  # 因为我们直接使用token ids作为输入
     )
     return sgl.Engine(**dataclasses.asdict(server_args))
 
@@ -46,7 +47,7 @@ def run_sglang(prompts):
     }
     
     # Generate responses in batch
-    responses = engine.generate(
+    outputs = engine.generate(
         input_ids=input_ids,
         sampling_params=sgl_sampling_params
     )
@@ -55,8 +56,13 @@ def run_sglang(prompts):
     
     # Extract output tokens from responses
     output_prompts = []
-    for response in responses:
-        output_prompts.append(response["output_ids"])
+    if isinstance(outputs, list):
+        # 批量生成的情况
+        for output in outputs:
+            output_prompts.append(output["output_ids"])
+    else:
+        # 单个生成的情况
+        output_prompts.append(outputs["output_ids"])
     
     print("time:", end - start)
     out = [len(a) for a in output_prompts]
