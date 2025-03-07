@@ -10,9 +10,9 @@ from sglang.srt.server_args import ServerArgs
 def get_engine_instance():
     server_args = ServerArgs(
         model_path="/scratch/bingxche/deepseek-v3",
-        tensor_parallel_size=8,
+        tp_size=8,
         trust_remote_code=True,
-        skip_tokenizer_init=True,  # 因为我们直接使用token ids作为输入
+        skip_tokenizer_init=True,  
     )
     return sgl.Engine(**dataclasses.asdict(server_args))
 
@@ -57,17 +57,22 @@ def run_sglang(prompts):
     # Extract output tokens from responses
     output_prompts = []
     if isinstance(outputs, list):
-        # 批量生成的情况
+        # Batch generation case
         for output in outputs:
-            output_prompts.append(output["output_ids"])
+            output_prompts.append(output.get("output_ids", output.get("token_ids", [])))
     else:
-        # 单个生成的情况
-        output_prompts.append(outputs["output_ids"])
+        # Single generation case
+        output_prompts.append(outputs.get("output_ids", outputs.get("token_ids", [])))
     
     print("time:", end - start)
     out = [len(a) for a in output_prompts]
     print("output prompt lens:", sum(out) / len(out))
     print("input and output prompts:", output_prompts[0])
+    
+    
+    # # Add this for debugging
+    # print("------------------Output structure sample:", outputs[0] if isinstance(outputs, list) else outputs)
+    # print("------------------Available keys:", outputs[0].keys() if isinstance(outputs, list) else outputs.keys())
     
     # Clean up
     engine.shutdown()
