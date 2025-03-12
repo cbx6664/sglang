@@ -8,13 +8,7 @@ import sglang as sgl
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.sampling.sampling_params import SamplingParams
 from pathlib import Path
-from sglang.srt.layers.moe.moe_analyzer import MoEAnalyzer
-
-import sys
-import os
-
-# 将cbx_learning目录添加到Python路径中
-sys.path.append(os.path.join(os.path.dirname(__file__), 'sglang.srt.layers.moe'))
+from moe_analyzer import MoEAnalyzer
 
 
 def get_engine_instance():
@@ -97,7 +91,7 @@ def main():
             f"{total_num_tokens / elapsed_time:.2f} total tokens/s, "
             f"{total_output_tokens / elapsed_time:.2f} output tokens/s")
     
-    analyzer.plot_distribution()
+    # analyzer.plot_distribution()
     analyzer.print_statistics()
 
 if __name__ == "__main__":

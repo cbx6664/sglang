@@ -10,7 +10,7 @@ from torch.nn import functional as F
 
 from sglang.srt.layers.activation import GeluAndMul, SiluAndMul
 from sglang.srt.layers.moe.topk import select_experts
-from sglang.srt.layers.moe.moe_analyzer import MoEAnalyzer
+from cbx_learning.moe_analyzer import MoEAnalyzer
 
 
 def fused_moe_forward_native(
