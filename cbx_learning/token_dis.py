@@ -10,6 +10,13 @@ from sglang.srt.sampling.sampling_params import SamplingParams
 from pathlib import Path
 from sglang.srt.layers.moe.moe_analyzer import MoEAnalyzer
 
+import sys
+import os
+
+# 将cbx_learning目录添加到Python路径中
+sys.path.append(os.path.join(os.path.dirname(__file__), 'sglang.srt.layers.moe'))
+
+
 def get_engine_instance():
     server_args = ServerArgs(
         model_path="/scratch/bingxche/deepseek-v3",
