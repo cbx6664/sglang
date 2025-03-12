@@ -10,6 +10,7 @@ from torch.nn import functional as F
 
 from sglang.srt.layers.activation import GeluAndMul, SiluAndMul
 from sglang.srt.layers.moe.topk import select_experts
+from sglang.srt.layers.moe.moe_analyzer import MoEAnalyzer
 
 
 def fused_moe_forward_native(
@@ -54,6 +55,7 @@ def fused_moe_forward_native(
     expert_outs = torch.einsum("tao, taio -> tai", (x1 * x3), w2_weights)
     return torch.einsum("tai,ta -> ti", expert_outs, topk_weights.to(expert_outs.dtype))
 
+analyzer = MoEAnalyzer()
 
 def moe_forward_native(
     layer: torch.nn.Module,
@@ -92,6 +94,9 @@ def moe_forward_native(
 
     sorted_tokens = x[idxs // topk_ids.shape[1]]
     tokens_per_expert = tokens_per_expert.cpu().numpy()
+    
+    analyzer.hook_fn("moe_layer", tokens_per_expert)
+
 
     if activation == "silu":
         act = SiluAndMul()
