@@ -67,4 +67,4 @@ class MoEAnalyzer:
             # 计算负载均衡指标
             n = len(avg_dist)
             fairness = avg_dist.sum()**2 / (n * (avg_dist**2).sum())
-            print(f"负载均衡指标(Jain's fairness): {fairness:.4f}")
+            print(f"负载均衡指标(Jain's fairness): {fairness:.4f}") 

@@ -70,3 +70,111 @@ For enterprises interested in adopting or deploying SGLang at scale, including t
 
 ## Acknowledgment and Citation
 We learned the design and reused code from the following projects: [Guidance](https://github.com/guidance-ai/guidance), [vLLM](https://github.com/vllm-project/vllm), [LightLLM](https://github.com/ModelTC/lightllm), [FlashInfer](https://github.com/flashinfer-ai/flashinfer), [Outlines](https://github.com/outlines-dev/outlines), and [LMQL](https://github.com/eth-sri/lmql). Please cite the paper, [SGLang: Efficient Execution of Structured Language Model Programs](https://arxiv.org/abs/2312.07104), if you find the project useful.
+
+# DeepSeek-V3 MoE Token分布分析工具
+
+这个工具集用于分析DeepSeek-V3模型中每层和每个专家(Experts)的token分布情况。通过SGLang框架加载和运行模型，收集MoE层的路由信息，并生成可视化结果。
+
+## 功能特点
+
+- 分析DeepSeek-V3模型中的Mixture of Experts (MoE)路由模式
+- 收集每层每个专家接收的token数量
+- 生成多种可视化结果：
+  - 每层专家使用分布饼图
+  - 专家负载热图
+  - 全局专家使用频率条形图
+- 支持批量处理多个提示语句
+- 支持自定义分析参数
+
+## 安装依赖
+
+```bash
+pip install sglang torch matplotlib numpy
+```
+
+## 文件说明
+
+- `moe_hooks.py`: 包含MoE监控钩子的实现，用于捕获路由信息
+- `analyze_deepseek_v3_moe.py`: 主分析脚本，用于加载模型、收集数据和生成可视化结果
+- `analyze_deepseek_moe.py`: 简化版分析脚本
+
+## 使用方法
+
+### 基本用法
+
+```bash
+python analyze_deepseek_v3_moe.py --model deepseek-ai/deepseek-v3-chat
+```
+
+### 高级用法
+
+```bash
+python analyze_deepseek_v3_moe.py \
+  --model deepseek-ai/deepseek-v3-chat \
+  --output-dir my_analysis_results \
+  --prompts-file my_prompts.txt \
+  --batch-size 4 \
+  --topk 2 \
+  --topk-group 2 \
+  --num-expert-group 8
+```
+
+### 参数说明
+
+- `--model`: 模型路径或Huggingface模型ID (默认: deepseek-ai/deepseek-v3-chat)
+- `--output-dir`: 分析结果输出目录 (默认: moe_analysis_results)
+- `--prompts-file`: 包含提示的文本文件，每行一个提示
+- `--batch-size`: 批处理大小 (默认: 1)
+- `--topk`: 模型使用的专家数量 (默认: 2)
+- `--topk-group`: 模型使用的专家组数量 (默认: 2)
+- `--num-expert-group`: 每组专家数量 (默认: 8)
+
+## 准备提示文件
+
+创建一个文本文件，每行包含一个提示语句：
+
+```text
+请解释一下混合专家模型(MoE)的工作原理。
+人工智能的未来发展趋势是什么？
+写一篇关于气候变化的短文。
+如何使用Python实现快速排序算法？
+解释量子计算的基本原理。
+```
+
+## 输出结果
+
+分析完成后，输出目录将包含以下文件：
+
+1. `routing_summary.json`: 包含所有路由统计信息的JSON文件
+2. 每层专家分布饼图: `{layer_name}_pie.png`
+3. 专家负载热图: `expert_load_heatmap.png`
+4. 全局专家使用频率图: `expert_total_distribution.png`
+
+## DeepSeek-V3 MoE结构说明
+
+DeepSeek-V3采用了分组双向路由策略(Grouped Bi-directional Routing)的MoE结构：
+
+- 使用`biased_grouped_topk`函数进行路由
+- 每个token选择topk个专家
+- 专家被分成多个组，每个token只能从topk_group个组中选择专家
+- 每组包含num_expert_group个专家
+
+## 技术细节
+
+DeepSeek-V3的路由机制使用了SGLang中的`biased_grouped_topk`函数，该函数特点：
+
+1. 使用sigmoid激活而非softmax
+2. 添加了correction_bias以平衡专家负载
+3. 采用分组选择策略，先选择专家组，再在组内选择专家
+
+## 注意事项
+
+- 分析大量提示可能需要较长时间
+- 需要足够的GPU内存加载完整的DeepSeek-V3模型
+- 结果可能因模型版本而略有不同
+
+## 参考资料
+
+- [DeepSeek-V3论文](https://arxiv.org/abs/2407.25833)
+- [SGLang框架](https://github.com/sgl-project/sglang)
+- [Mixture of Experts简介](https://arxiv.org/abs/2101.03961)
