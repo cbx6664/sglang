@@ -29,6 +29,10 @@ try:
     # 修正导入路径
     from sglang.srt.model_executor.model_runner import ModelRunner
     from moe_hooks import MoERoutingMonitor, patch_deepseek_select_experts, restore_select_experts
+    # 导入必要的用于初始化ModelRunner的类
+    from sglang.srt.server_args import ServerArgs
+    from sglang.srt.models import get_model
+    from sglang.srt.model_config import ModelConfig
 except ImportError as e:
     print(f"导入错误: {e}")
     print("请确保已安装sglang: pip install sglang")
@@ -66,14 +70,33 @@ class DeepSeekMoEAnalyzer:
         # 初始化路由监控器
         self.routing_monitor = MoERoutingMonitor()
         
-        # 加载模型
+        # 加载模型 - 使用正确的初始化方式
         print(f"正在加载模型: {model_path}")
-        self.model_runner = ModelRunner.from_pretrained(
-            model_path,
-            tp_size=1,  # 单GPU
-            max_model_len=4096,
-            dtype="auto",
+        
+        # 创建ServerArgs实例
+        server_args = ServerArgs()
+        server_args.model = model_path
+        server_args.device = "cuda"
+        server_args.max_model_len = 4096
+        server_args.dtype = "auto"
+        server_args.tp_size = 8  # 使用单GPU
+        
+        # 获取模型配置
+        model_config = get_model(server_args)
+        
+        # 初始化ModelRunner
+        self.model_runner = ModelRunner(
+            model_config=model_config,
+            mem_fraction_static=0.9,  # 内存分配比例
+            gpu_id=0,  # 使用第一个GPU
+            tp_rank=0,  # 张量并行rank
+            tp_size=1,  # 单GPU运行
+            nccl_port=29500,  # NCCL端口
+            server_args=server_args,  # 服务器参数
         )
+        
+        # 加载模型权重
+        self.model_runner.load_model()
         
         # 注册钩子
         print("注册MoE监控钩子...")

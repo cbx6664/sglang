@@ -18,17 +18,10 @@ if current_dir not in sys.path:
 # 导入SGLang相关模块
 try:
     from sglang.srt.model_executor.model_runner import ModelRunner
-    # 注意：需要确认InferenceEngine的正确导入路径
-    # 尝试按照最可能的路径导入
-    try:
-        from sglang.srt.model_executor.inference_engine import InferenceEngine
-    except ImportError:
-        # 如果上面的导入失败，则尝试其他可能的路径
-        try:
-            from sglang.srt.inference_engine import InferenceEngine
-        except ImportError:
-            print("无法找到InferenceEngine，请检查SGLang版本或查看文档获取正确的导入路径")
-            sys.exit(1)
+    # 我们将直接使用ModelRunner而不是InferenceEngine
+    from sglang.srt.server_args import ServerArgs
+    from sglang.srt.models import get_model
+    from sglang.srt.model_config import ModelConfig
 except ImportError as e:
     print(f"导入错误: {e}")
     print("请确保已安装sglang: pip install sglang")
@@ -48,16 +41,38 @@ class MoEAnalyzer:
         self.model_path = model_path
         self.stats = {}
         
-        # 初始化模型
+        # 初始化模型 - 使用ModelRunner代替InferenceEngine
         try:
-            self.engine = InferenceEngine(
-                model=model_path,
-                max_model_len=4096,
-                dtype="auto",
-                device_config={"device": "cuda"},
+            print(f"正在加载模型: {model_path}")
+            
+            # 创建ServerArgs实例
+            server_args = ServerArgs()
+            server_args.model = model_path
+            server_args.device = "cuda"
+            server_args.max_model_len = 4096
+            server_args.dtype = "auto"
+            server_args.tp_size = 8  # 使用单GPU
+            
+            # 获取模型配置
+            model_config = get_model(server_args)
+            
+            # 初始化ModelRunner
+            self.model_runner = ModelRunner(
+                model_config=model_config,
+                mem_fraction_static=0.9,  # 内存分配比例
+                gpu_id=0,  # 使用第一个GPU
+                tp_rank=0,  # 张量并行rank
+                tp_size=8,  # 单GPU运行
+                nccl_port=29500,  # NCCL端口
+                server_args=server_args,  # 服务器参数
             )
+            
+            # 加载模型权重
+            self.model_runner.load_model()
+            
+            print("模型加载完成")
         except Exception as e:
-            print(f"初始化InferenceEngine失败: {e}")
+            print(f"初始化ModelRunner失败: {e}")
             print("请检查SGLang文档获取当前版本的正确API用法")
             sys.exit(1)
     
@@ -75,13 +90,13 @@ class MoEAnalyzer:
         for prompt in prompts:
             # 运行推理
             with torch.inference_mode():
-                outputs = self.engine.generate(
+                # 使用ModelRunner进行生成
+                # 注意：API可能需要根据实际ModelRunner的接口调整
+                # 这里假设ModelRunner有类似的generate方法
+                outputs = self.model_runner.generate(
                     prompt=prompt,
-                    sampling_params={
-                        "max_tokens": 1,  # 只生成一个token，我们只关注路由
-                        "temperature": 0,
-                    },
-                    return_routing_info=True,  # 假设InferenceEngine支持这个参数
+                    max_tokens=1,  # 只生成一个token，我们只关注路由
+                    temperature=0,
                 )
                 
                 # 从输出中提取路由信息
