@@ -8,11 +8,13 @@ import sglang as sgl
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.sampling.sampling_params import SamplingParams
 from pathlib import Path
+import os
 
 def get_engine_instance():
     server_args = ServerArgs(
         model_path="/scratch/bingxche/deepseek-v3",
-        tp_size=8,
+        ep_size=8,
+        enable_ep_moe=True,
         trust_remote_code=True,
     )
     return sgl.Engine(**dataclasses.asdict(server_args))
@@ -33,6 +35,7 @@ def sample_requests_moe():
 
 # todo Not Supported Yet
 def profile_run_sglang(prompts, sampling_params):
+    os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
     engine = get_engine_instance()
     input_ids = [prompt[0] for prompt in prompts]
     profile_dir = "/home/bingxche/trace_dir"
@@ -41,15 +44,10 @@ def profile_run_sglang(prompts, sampling_params):
         activities=[
             torch.profiler.ProfilerActivity.CPU,
             torch.profiler.ProfilerActivity.CUDA],
-        on_trace_ready=torch.profiler.tensorboard_trace_handler(str(profile_dir)),
-        record_shapes=True,
-        with_stack=True
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(str(profile_dir))
     ) as p:
         start = time.perf_counter()
-        engine.generate(
-            input_ids=input_ids,
-            sampling_params=sampling_params
-        )
+        engine.generate(input_ids=input_ids, sampling_params=sampling_params)
         end = time.perf_counter()
     
     # Try both table formats since different GPU backends use different fields
@@ -60,12 +58,6 @@ def profile_run_sglang(prompts, sampling_params):
         print(p.key_averages().table(sort_by="self_cuda_time_total", row_limit=20))
     except:
         print("Could not sort by self_cuda_time_total")
-    
-    print("\n==== GPU PROFILE (generic style) ====")
-    try:
-        print(p.key_averages().table(sort_by="cuda_time_total", row_limit=20))
-    except:
-        print("Could not sort by cuda_time_total")
     
     print(f"\nTotal execution time: {end - start:.4f} seconds")
     
