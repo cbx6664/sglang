@@ -50,6 +50,7 @@ from sglang.srt.utils import (
     permute_weight,
     print_warning_once,
     set_weight_attrs,
+    print_expert_token_dist,
 )
 
 ACTIVATION_SCHEMES = ["static", "dynamic"]
@@ -62,6 +63,7 @@ if _is_hip:
 
 logger = logging.getLogger(__name__)
 
+from sglang.srt.server_args import ServerArgs
 
 class Fp8Config(QuantizationConfig):
     """Config class for FP8."""
@@ -881,6 +883,17 @@ class Fp8MoEMethod:
             custom_routing_function=custom_routing_function,
             correction_bias=correction_bias,
         )
+
+        if print_expert_token_dist:
+            
+            flatten_topk_ids = topk_ids.view(-1)
+            tokens_per_expert = torch.bincount(flatten_topk_ids, minlength=256)
+            from sglang.srt.models.deepseek_v2 import DeepseekV2Model
+            
+            print("---"*10 + "\n" + 
+            f"layer id: {DeepseekV2Model.layer_id_print}\n" +
+          f"tokens per expert: {tokens_per_expert.detach().cpu().numpy()}\n" +
+          f"total number of tokens: {flatten_topk_ids.shape[0]}")
 
         if _is_hip and get_bool_env_var("USE_INT4_WEIGHT"):
             # TODO: add triton kernel and add check get_bool_env_var("CK_MOE")
