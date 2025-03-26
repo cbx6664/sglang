@@ -14,7 +14,8 @@ def get_engine_instance():
     server_args = ServerArgs(
         model_path="/scratch/bingxche/deepseek-v3",
         tp_size=8,
-        ep_size=8,
+        # dp_size=8,
+        # ep_size=8,
         # using "enable_ep_moe" will cause error: Unsupported conversion from 'f8E4M3FN' to 'f16'
         # enable_ep_moe=True,
         trust_remote_code=True,
@@ -102,7 +103,7 @@ def run_sglang(prompts, sampling_params):
 
 def main(enable_profiling: bool = False):
     # whether print token distribution
-    os.environ["profile_dirprint_expert_token_dist"] = "1"
+    os.environ["print_expert_token_dist"] = "1"
     requests = sample_requests_moe()
     prompts = requests
     

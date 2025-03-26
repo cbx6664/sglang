@@ -1,7 +1,9 @@
 """Benchmark offline inference throughput using SGLang."""
 import time
 import dataclasses
+from matplotlib import pyplot as plt
 import pandas as pd
+from sglang.srt.layers.quantization.fp8 import save_moe_token_distribution_plots
 import torch
 from typing import List, Tuple, Dict
 import sglang as sgl
@@ -9,12 +11,15 @@ from sglang.srt.server_args import ServerArgs
 from sglang.srt.sampling.sampling_params import SamplingParams
 from pathlib import Path
 import os
+import torch.distributed as dist
+
 
 def get_engine_instance():
     server_args = ServerArgs(
         model_path="/scratch/bingxche/deepseek-v3",
         tp_size=8,
-        ep_size=8,
+        # dp_size=8,
+        # ep_size=8,
         # using "enable_ep_moe" will cause error: Unsupported conversion from 'f8E4M3FN' to 'f16'
         # enable_ep_moe=True,
         trust_remote_code=True,
@@ -64,12 +69,10 @@ def profile_run_sglang(prompts, sampling_params):
 def run_sglang(prompts, sampling_params):
     engine = get_engine_instance()
     start = time.perf_counter()
-    # Convert token IDs to input_ids format for SGLang
-    input_ids = [prompt[0] for prompt in prompts]
     
     # Generate responses in batch
     outputs = engine.generate(
-        input_ids=input_ids,
+        prompt=prompts,
         sampling_params=sampling_params
     )
     
@@ -97,7 +100,7 @@ def run_sglang(prompts, sampling_params):
 
 def main(enable_profiling: bool = False):
     # whether print token distribution
-    os.environ["profile_dirprint_expert_token_dist"] = "1"
+    os.environ["print_expert_token_dist"] = "1"    
     requests = sample_requests_moe()
     prompts = requests
     
@@ -114,6 +117,7 @@ def main(enable_profiling: bool = False):
         profile_run_sglang(prompts, sampling_params)
     else:
         prompts, output_prompts, elapsed_time = run_sglang(requests, sampling_params)
+        
         assert len(prompts) == len(output_prompts), "prompt input and output lengths are different"
         total_num_tokens = sum(len(prompts[idx][0]) + len(output_prompts[idx]) for idx in range(0, len(prompts)))
         total_output_tokens = sum(len(output_prompt) for output_prompt in output_prompts)
