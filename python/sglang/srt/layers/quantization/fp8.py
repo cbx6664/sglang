@@ -900,10 +900,11 @@ class Fp8MoEMethod:
             #     torch.distributed.all_reduce(local_tokens_per_expert, op=torch.distributed.ReduceOp.SUM)
             
         if dist.get_rank() == 0:
-            import traceback
-            logger.info(f"apply() call stack:\n{traceback.format_stack()}")
-            logger.info(f"Fp8MoEMethod instance id: {id(self)}")
+            if not hasattr(self, 'apply_call_count'):
+                self.apply_call_count = 0
+            old_count = self.apply_call_count
             self.apply_call_count += 1
+            logger.info(f"实例ID: {id(self)}, 旧计数: {old_count}, 新计数: {self.apply_call_count}")
             logger.info(f"apply() has been called {self.apply_call_count} times on rank {dist.get_rank()}")
             logger.info(f"select_experts called by this apply: {self.select_experts_call_count} times")
             from sglang.srt.models.deepseek_v2 import DeepseekV2Model
