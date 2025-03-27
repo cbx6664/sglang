@@ -159,7 +159,12 @@ def biased_grouped_topk(
 
     return topk_weights.to(torch.float32), topk_ids.to(torch.int32)
 
-select_experts_call_count = 0
+# Use a class to store the counter state because:
+# 1. Global variables in Python modules are not shared between processes
+# 2. A class variable provides a shared state that persists across function calls
+# 3. This allows us to track the total number of calls across the entire program execution
+class SelectExpertsCounter:
+    count = 0
 
 def select_experts(
     hidden_states: torch.Tensor,
@@ -173,11 +178,10 @@ def select_experts(
     correction_bias: Optional[torch.Tensor] = None,
     torch_native: bool = False,
 ):
-    global select_experts_call_count
-    select_experts_call_count += 1
+    SelectExpertsCounter.count += 1
     import logging
     logger = logging.getLogger(__name__)
-    logger.info(f"select_experts has been called {select_experts_call_count} times.")
+    print(f"select_experts has been called {SelectExpertsCounter.count} times.")
     
     # DeepSeek V2/V3/R1 uses biased_grouped_top
     if use_grouped_topk:
