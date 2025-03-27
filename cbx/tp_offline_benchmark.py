@@ -88,25 +88,6 @@ def run_sglang(prompts, sampling_params):
     
     # Extract output tokens from responses
     output_prompts = []
-    
-    logger.info(f"outputs: {outputs}")
-    # Log the type and structure of outputs
-    logger.info(f"Type of outputs: {type(outputs)}")
-    if isinstance(outputs, list):
-        logger.info(f"Number of outputs in list: {len(outputs)}")
-        for idx, output in enumerate(outputs):
-            logger.info(f"Output {idx}: {output}")
-            if isinstance(output, dict):
-                logger.info(f"Keys in output {idx}: {list(output.keys())}")
-                if "output_ids" in output:
-                    logger.info(f"Length of output_ids in output {idx}: {len(output['output_ids'])}")
-    else:
-        logger.info(f"Single output: {outputs}")
-        if isinstance(outputs, dict):
-            logger.info(f"Keys in output: {list(outputs.keys())}")
-            if "output_ids" in outputs:
-                logger.info(f"Length of output_ids: {len(outputs['output_ids'])}")
-                
     if isinstance(outputs, list):
         # Batch generation case
         for output in outputs:
