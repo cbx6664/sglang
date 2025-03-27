@@ -903,9 +903,7 @@ class Fp8MoEMethod:
         old_count = self.apply_call_count
         self.apply_call_count += 1
         self.select_experts_call_count += 1
-        logger.info(f"Instance ID: {id(self)}, old apply_count: {old_count}, new apply_count: {self.apply_call_count}")
-        logger.info(f"apply() has been called {self.apply_call_count} times on rank {dist.get_rank()}")
-        logger.info(f"select_experts called by this apply: {self.select_experts_call_count} times")
+        logger.info(f"Instance ID: {id(self)}, old apply_count: {old_count}, new apply_count: {self.apply_call_count}, apply() has been called {self.apply_call_count} times on rank {dist.get_rank()}, select_experts called by this apply: {self.select_experts_call_count} times")
         from sglang.srt.models.deepseek_v2 import DeepseekV2Model
         layer_id = DeepseekV2Model.layer_id_print
             
