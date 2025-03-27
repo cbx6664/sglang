@@ -16,6 +16,7 @@ from typing import Callable, Optional
 
 import torch
 import torch.nn.functional as F
+import torch.distributed as dist
 
 from sglang.srt.utils import get_compiler_backend
 
@@ -178,10 +179,11 @@ def select_experts(
     correction_bias: Optional[torch.Tensor] = None,
     torch_native: bool = False,
 ):
-    SelectExpertsCounter.count += 1
-    import logging
-    logger = logging.getLogger(__name__)
-    print(f"select_experts has been called {SelectExpertsCounter.count} times.")
+    if dist.get_rank() == 0:
+        SelectExpertsCounter.count += 1
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"select_experts has been called {SelectExpertsCounter.count} times.")
     
     # DeepSeek V2/V3/R1 uses biased_grouped_top
     if use_grouped_topk:

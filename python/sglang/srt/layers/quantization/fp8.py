@@ -878,9 +878,6 @@ class Fp8MoEMethod:
         from sglang.srt.layers.moe.fused_moe_triton.fused_moe import fused_experts
         from sglang.srt.layers.moe.topk import select_experts
 
-        self.apply_call_count += 1
-        print(f"apply() has been called {self.apply_call_count} times")
-
         # Expert selection
         topk_weights, topk_ids = select_experts(
             hidden_states=x,
@@ -902,6 +899,8 @@ class Fp8MoEMethod:
             #     torch.distributed.all_reduce(local_tokens_per_expert, op=torch.distributed.ReduceOp.SUM)
             
             if dist.get_rank() == 0:
+                self.apply_call_count += 1
+                logger.info(f"apply() has been called {self.apply_call_count} times")
                 from sglang.srt.models.deepseek_v2 import DeepseekV2Model
                 layer_id = DeepseekV2Model.layer_id_print
             
@@ -913,7 +912,7 @@ class Fp8MoEMethod:
             
                 
             # if self.count == 1027:
-                print(f"In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
+                logger.info(f"In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
                 # output_dir = "/home/bingxche/trace_dir/moe_token_distribution_plots"
                 # os.makedirs(output_dir, exist_ok=True)
 
