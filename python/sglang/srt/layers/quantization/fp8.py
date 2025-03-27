@@ -899,16 +899,15 @@ class Fp8MoEMethod:
             # if self.is_dist_initialized():
             #     torch.distributed.all_reduce(local_tokens_per_expert, op=torch.distributed.ReduceOp.SUM)
             
-        if dist.get_rank() == 0:
-            if not hasattr(self, 'apply_call_count'):
-                self.apply_call_count = 0
-            old_count = self.apply_call_count
-            self.apply_call_count += 1
-            logger.info(f"实例ID: {id(self)}, 旧计数: {old_count}, 新计数: {self.apply_call_count}")
-            logger.info(f"apply() has been called {self.apply_call_count} times on rank {dist.get_rank()}")
-            logger.info(f"select_experts called by this apply: {self.select_experts_call_count} times")
-            from sglang.srt.models.deepseek_v2 import DeepseekV2Model
-            layer_id = DeepseekV2Model.layer_id_print
+        # if dist.get_rank() == 0:
+        old_count = self.apply_call_count
+        self.apply_call_count += 1
+        self.select_experts_call_count += 1
+        logger.info(f"Instance ID: {id(self)}, old apply_count: {old_count}, new apply_count: {self.apply_call_count}")
+        logger.info(f"apply() has been called {self.apply_call_count} times on rank {dist.get_rank()}")
+        logger.info(f"select_experts called by this apply: {self.select_experts_call_count} times")
+        from sglang.srt.models.deepseek_v2 import DeepseekV2Model
+        layer_id = DeepseekV2Model.layer_id_print
             
             # if layer_id not in MOE_TOKENS_DIST_LAYER_SUM:
             #     MOE_TOKENS_DIST_LAYER_SUM[layer_id] = local_tokens_per_expert.clone()
@@ -918,7 +917,7 @@ class Fp8MoEMethod:
             
                 
             # if self.count == 1027:
-            logger.info(f"In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
+        logger.info(f"In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
                 # output_dir = "/home/bingxche/trace_dir/moe_token_distribution_plots"
                 # os.makedirs(output_dir, exist_ok=True)
 
