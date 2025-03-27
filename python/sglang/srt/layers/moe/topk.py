@@ -165,7 +165,9 @@ def biased_grouped_topk(
 # 2. A class variable provides a shared state that persists across function calls
 # 3. This allows us to track the total number of calls across the entire program execution
 class SelectExpertsCounter:
-    count = 0
+    def __init__(self):
+        self.count = 0  # 改为实例变量
+        self.callers = {}  # 改为实例变量
 
 def select_experts(
     hidden_states: torch.Tensor,
@@ -180,10 +182,15 @@ def select_experts(
     torch_native: bool = False,
 ):
     if dist.get_rank() == 0:
-        SelectExpertsCounter.count += 1
+        counter = SelectExpertsCounter()  # 创建新实例
+        counter.count += 1
+        import inspect
+        caller = inspect.stack()[1].filename
+        counter.callers[caller] = counter.callers.get(caller, 0) + 1
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"select_experts has been called {SelectExpertsCounter.count} times.")
+        logger.info(f"select_experts has been called {counter.count} times on rank {dist.get_rank()}")
+        logger.info(f"Callers breakdown: {counter.callers}")
     
     # DeepSeek V2/V3/R1 uses biased_grouped_top
     if use_grouped_topk:

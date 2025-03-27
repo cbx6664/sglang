@@ -455,6 +455,8 @@ class Fp8MoEMethod:
     def __init__(self, quant_config):
         self.quant_config = quant_config
         self.block_quant = self.quant_config.weight_block_size is not None
+        self.apply_call_count = 0
+        self.select_experts_call_count = 0
 
     def create_weights(
         self,
@@ -857,7 +859,6 @@ class Fp8MoEMethod:
             )
             torch.cuda.empty_cache()
 
-    apply_call_count = 0
 
     def apply(
         self,
@@ -891,18 +892,22 @@ class Fp8MoEMethod:
             correction_bias=correction_bias, 
         )
 
-        if print_expert_token_dist:
+        # if print_expert_token_dist:
             # flatten_topk_ids = topk_ids.view(-1)
             # local_tokens_per_expert = torch.bincount(flatten_topk_ids, minlength=256)
             
             # if self.is_dist_initialized():
             #     torch.distributed.all_reduce(local_tokens_per_expert, op=torch.distributed.ReduceOp.SUM)
             
-            if dist.get_rank() == 0:
-                self.apply_call_count += 1
-                logger.info(f"apply() has been called {self.apply_call_count} times")
-                from sglang.srt.models.deepseek_v2 import DeepseekV2Model
-                layer_id = DeepseekV2Model.layer_id_print
+        if dist.get_rank() == 0:
+            import traceback
+            logger.info(f"apply() call stack:\n{traceback.format_stack()}")
+            logger.info(f"Fp8MoEMethod instance id: {id(self)}")
+            self.apply_call_count += 1
+            logger.info(f"apply() has been called {self.apply_call_count} times on rank {dist.get_rank()}")
+            logger.info(f"select_experts called by this apply: {self.select_experts_call_count} times")
+            from sglang.srt.models.deepseek_v2 import DeepseekV2Model
+            layer_id = DeepseekV2Model.layer_id_print
             
             # if layer_id not in MOE_TOKENS_DIST_LAYER_SUM:
             #     MOE_TOKENS_DIST_LAYER_SUM[layer_id] = local_tokens_per_expert.clone()
@@ -912,7 +917,7 @@ class Fp8MoEMethod:
             
                 
             # if self.count == 1027:
-                logger.info(f"In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
+            logger.info(f"In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
                 # output_dir = "/home/bingxche/trace_dir/moe_token_distribution_plots"
                 # os.makedirs(output_dir, exist_ok=True)
 
