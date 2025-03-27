@@ -2,6 +2,7 @@
 import time
 import dataclasses
 import pandas as pd
+from python.sglang.srt.layers.quantization.fp8 import Fp8MoEMethod_INSTANCE_ID, Fp8MoEMethod_INSTANCE_LAYER_MAP
 import torch
 from typing import List, Tuple, Dict
 import sglang as sgl
@@ -125,6 +126,15 @@ def main(enable_profiling: bool = False):
         profile_run_sglang(prompts, sampling_params)
     else:
         prompts, output_prompts, elapsed_time = run_sglang(requests, sampling_params)
+        
+        print(f"===== Fp8MoEMethod Instances Summary =====")
+        print(f"Total unique instances: {len(Fp8MoEMethod_INSTANCE_ID)}")
+        # 按层ID排序显示
+        for layer_id in range(3, 61):  # MoE层的ID范围
+            for instance_id, mapped_layer in Fp8MoEMethod_INSTANCE_LAYER_MAP.items():
+                if mapped_layer == layer_id:
+                    print(f"Layer {layer_id}: Instance {instance_id}")
+        
         assert len(prompts) == len(output_prompts), "prompt input and output lengths are different"
         total_num_tokens = sum(len(prompts[idx][0]) + len(output_prompts[idx]) for idx in range(0, len(prompts)))
         total_output_tokens = sum(len(output_prompt) for output_prompt in output_prompts)

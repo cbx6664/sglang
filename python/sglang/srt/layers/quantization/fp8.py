@@ -57,6 +57,8 @@ from sglang.srt.utils import (
     set_weight_attrs,
     print_expert_token_dist,
 )
+Fp8MoEMethod_INSTANCE_ID = set()
+Fp8MoEMethod_INSTANCE_LAYER_MAP = {}
 MOE_TOKENS_DIST_LAYER_SUM: Dict[int, torch.Tensor] = {}
 ACTIVATION_SCHEMES = ["static", "dynamic"]
 
@@ -900,12 +902,14 @@ class Fp8MoEMethod:
             #     torch.distributed.all_reduce(local_tokens_per_expert, op=torch.distributed.ReduceOp.SUM)
             
         # if dist.get_rank() == 0:
-        old_count = self.apply_call_count
-        self.apply_call_count += 1
-        self.select_experts_call_count += 1
-        logger.info(f"Instance ID: {id(self)}, old apply_count: {old_count}, new apply_count: {self.apply_call_count}, apply() has been called {self.apply_call_count} times on rank {dist.get_rank()}, select_experts called by this apply: {self.select_experts_call_count} times")
+        instance_id = id(self)
         from sglang.srt.models.deepseek_v2 import DeepseekV2Model
         layer_id = DeepseekV2Model.layer_id_print
+        self.apply_call_count += 1
+        self.select_experts_call_count += 1
+        logger.info(f"Fp8MoEMethod Instance ID: {id(self)}, apply() has been called {self.apply_call_count} times on rank {dist.get_rank()}, select_experts called by this Fp8MoEMethod instance: {self.select_experts_call_count} times")
+        Fp8MoEMethod_INSTANCE_ID.add(instance_id)
+        Fp8MoEMethod_INSTANCE_LAYER_MAP[instance_id] = layer_id
             
             # if layer_id not in MOE_TOKENS_DIST_LAYER_SUM:
             #     MOE_TOKENS_DIST_LAYER_SUM[layer_id] = local_tokens_per_expert.clone()
@@ -915,7 +919,7 @@ class Fp8MoEMethod:
             
                 
             # if self.count == 1027:
-        logger.info(f"In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
+        logger.info(f"Fp8MoEMethod Instance ID: {id(self)},In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
                 # output_dir = "/home/bingxche/trace_dir/moe_token_distribution_plots"
                 # os.makedirs(output_dir, exist_ok=True)
 
