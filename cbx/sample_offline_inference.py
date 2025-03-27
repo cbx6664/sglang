@@ -16,7 +16,7 @@ import torch.distributed as dist
 
 def get_engine_instance():
     server_args = ServerArgs(
-        model_path="/scratch/bingxche/deepseek-v3",
+        model_path="/home/bingxche/deepseek-v3",
         tp_size=8,
         # dp_size=8,
         # ep_size=8,

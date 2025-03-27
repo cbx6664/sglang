@@ -433,7 +433,6 @@ class Fp8MoEMethod:
     Args:
         quant_config: The quantization config.
     """
-    count=0
 
     def __new__(cls, *args, **kwargs):
         from sglang.srt.layers.moe.fused_moe_triton import FusedMoEMethodBase
@@ -858,6 +857,8 @@ class Fp8MoEMethod:
             )
             torch.cuda.empty_cache()
 
+    apply_call_count = 0
+
     def apply(
         self,
         layer: torch.nn.Module,
@@ -877,6 +878,9 @@ class Fp8MoEMethod:
         from sglang.srt.layers.moe.fused_moe_triton.fused_moe import fused_experts
         from sglang.srt.layers.moe.topk import select_experts
 
+        self.apply_call_count += 1
+        logger.info(f"apply() has been called {self.apply_call_count} times")
+
         # Expert selection
         topk_weights, topk_ids = select_experts(
             hidden_states=x,
@@ -887,48 +891,50 @@ class Fp8MoEMethod:
             topk_group=topk_group,
             num_expert_group=num_expert_group,
             custom_routing_function=custom_routing_function,
-            correction_bias=correction_bias,
+            correction_bias=correction_bias, 
         )
 
         if print_expert_token_dist:
-            self.count+=1
-            flatten_topk_ids = topk_ids.view(-1)
-            local_tokens_per_expert = torch.bincount(flatten_topk_ids, minlength=256)
+            # flatten_topk_ids = topk_ids.view(-1)
+            # local_tokens_per_expert = torch.bincount(flatten_topk_ids, minlength=256)
             
-            if self.is_dist_initialized():
-                torch.distributed.all_reduce(local_tokens_per_expert, op=torch.distributed.ReduceOp.SUM)
+            # if self.is_dist_initialized():
+            #     torch.distributed.all_reduce(local_tokens_per_expert, op=torch.distributed.ReduceOp.SUM)
             
-            if dist.get_rank() == 0:
-                from sglang.srt.models.deepseek_v2 import DeepseekV2Model
-                layer_id = DeepseekV2Model.layer_id_print
+            # if dist.get_rank() == 0:
+            from sglang.srt.models.deepseek_v2 import DeepseekV2Model
+            layer_id = DeepseekV2Model.layer_id_print
+            
+            # if layer_id not in MOE_TOKENS_DIST_LAYER_SUM:
+            #     MOE_TOKENS_DIST_LAYER_SUM[layer_id] = local_tokens_per_expert.clone()
+            # else:
+            #     MOE_TOKENS_DIST_LAYER_SUM[layer_id] += local_tokens_per_expert
                 
-                if layer_id not in MOE_TOKENS_DIST_LAYER_SUM:
-                    MOE_TOKENS_DIST_LAYER_SUM[layer_id] = local_tokens_per_expert.clone()
-                else:
-                    MOE_TOKENS_DIST_LAYER_SUM[layer_id] += local_tokens_per_expert
-                    
-                if self.count == 1027:
-                    output_dir = "/home/bingxche/trace_dir/moe_token_distribution_plots"
-                    os.makedirs(output_dir, exist_ok=True)
+            
+                
+            # if self.count == 1027:
+            logger.info(f"In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
+                # output_dir = "/home/bingxche/trace_dir/moe_token_distribution_plots"
+                # os.makedirs(output_dir, exist_ok=True)
 
-                    for layer_id in sorted(MOE_TOKENS_DIST_LAYER_SUM.keys()):
-                        tokens_per_expert = MOE_TOKENS_DIST_LAYER_SUM[layer_id].detach().cpu().numpy()
+                # for layer_id in sorted(MOE_TOKENS_DIST_LAYER_SUM.keys()):
+                #     tokens_per_expert = MOE_TOKENS_DIST_LAYER_SUM[layer_id].detach().cpu().numpy()
+                    
+                #     plt.figure(figsize=(12, 6))
+                #     plt.bar(range(len(tokens_per_expert)), tokens_per_expert)
+                #     plt.title(f"Layer {layer_id} - Expert Token Distribution")
+                #     plt.xlabel("Expert ID")
+                #     plt.ylabel("Number of Tokens")
+                #     plt.tight_layout()
                         
-                        plt.figure(figsize=(12, 6))
-                        plt.bar(range(len(tokens_per_expert)), tokens_per_expert)
-                        plt.title(f"Layer {layer_id} - Expert Token Distribution")
-                        plt.xlabel("Expert ID")
-                        plt.ylabel("Number of Tokens")
-                        plt.tight_layout()
-                        
-                        # 保存图片
-                        plt.savefig(os.path.join(output_dir, f"layer_{layer_id}_token_dist.png"))
-                        plt.close()
+                    #     # 保存图片
+                    #     plt.savefig(os.path.join(output_dir, f"layer_{layer_id}_token_dist.png"))
+                    #     plt.close()
                         
                 
-                    logger.info(f"------------------------------------------------------------------------------------------------")
-                    logger.info(f"collected token distribution list of layer_id = {layer_id}")
-                    logger.info(f"layer_id = {layer_id} now has token distribution list: {MOE_TOKENS_DIST_LAYER_SUM[layer_id].detach().cpu().numpy()}")
+                    # logger.info(f"------------------------------------------------------------------------------------------------")
+                    # logger.info(f"collected token distribution list of layer_id = {layer_id}")
+                    # logger.info(f"layer_id = {layer_id} now has token distribution list: {MOE_TOKENS_DIST_LAYER_SUM[layer_id].detach().cpu().numpy()}")
                 
 
         if _is_hip and get_bool_env_var("USE_INT4_WEIGHT"):
@@ -998,6 +1004,9 @@ class Fp8MoEMethod:
                 block_shape=self.quant_config.weight_block_size,
                 no_combine=no_combine,
             )
+            
+        
+            
             
     @staticmethod        
     def is_dist_initialized() -> bool:

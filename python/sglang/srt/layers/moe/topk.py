@@ -159,6 +159,7 @@ def biased_grouped_topk(
 
     return topk_weights.to(torch.float32), topk_ids.to(torch.int32)
 
+select_experts_call_count = 0
 
 def select_experts(
     hidden_states: torch.Tensor,
@@ -172,6 +173,12 @@ def select_experts(
     correction_bias: Optional[torch.Tensor] = None,
     torch_native: bool = False,
 ):
+    global select_experts_call_count
+    select_experts_call_count += 1
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"select_experts has been called {select_experts_call_count} times.")
+    
     # DeepSeek V2/V3/R1 uses biased_grouped_top
     if use_grouped_topk:
         assert topk_group is not None
