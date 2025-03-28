@@ -901,14 +901,16 @@ class Fp8MoEMethod:
             flatten_topk_ids = topk_ids.view(-1)
             token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)
             
-            # if dist.get_rank() == 0:
-            from sglang.srt.models.deepseek_v2 import DeepseekV2Model
-            layer_id = DeepseekV2Model.layer_id_print
-            for layer_id in range(3, 61):
-                csv_path = os.path.join(output_dir, f"layer_{layer_id}_rank_{dist.get_rank()}.csv")
-                with open(csv_path, "a") as f:
-                    token_dist = token_dist_per_expert.cpu().tolist()
-                    f.write(",".join(map(str, token_dist)) + "\n")
+            if dist.get_rank() == 0:
+                from sglang.srt.models.deepseek_v2 import DeepseekV2Model
+                layer_id = DeepseekV2Model.layer_id_print
+                for i in range(3, 61):
+                    if i == layer_id:
+                        # csv_path = os.path.join(output_dir, f"layer_{layer_id}_rank_{dist.get_rank()}.csv")
+                        csv_path = os.path.join(output_dir, f"layer_{layer_id}_token_distribution.csv")
+                        with open(csv_path, "a") as f:
+                            token_dist = token_dist_per_expert.cpu().tolist()
+                            f.write(",".join(map(str, token_dist)) + "\n")
                     
                     
                     
