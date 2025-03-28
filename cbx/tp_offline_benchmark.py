@@ -2,7 +2,6 @@
 import time
 import dataclasses
 import pandas as pd
-from python.sglang.srt.layers.quantization.fp8 import Fp8MoEMethod_INSTANCE_ID, Fp8MoEMethod_INSTANCE_LAYER_MAP
 import torch
 from typing import List, Tuple, Dict
 import sglang as sgl

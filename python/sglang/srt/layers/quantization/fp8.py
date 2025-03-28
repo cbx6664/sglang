@@ -905,7 +905,7 @@ class Fp8MoEMethod:
             from sglang.srt.models.deepseek_v2 import DeepseekV2Model
             layer_id = DeepseekV2Model.layer_id_print
             for layer_id in range(3, 61):
-                csv_path = os.path.join(output_dir, f"{layer_id}_{dist.get_rank()}.csv")
+                csv_path = os.path.join(output_dir, f"layer_{layer_id}_rank_{dist.get_rank()}.csv")
                 with open(csv_path, "a") as f:
                     token_dist = token_dist_per_expert.cpu().tolist()
                     f.write(",".join(map(str, token_dist)) + "\n")
