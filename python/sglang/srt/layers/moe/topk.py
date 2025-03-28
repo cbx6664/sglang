@@ -180,15 +180,6 @@ def select_experts(
     correction_bias: Optional[torch.Tensor] = None,
     torch_native: bool = False,
 ):
-    # if dist.get_rank() == 0:
-    SelectExpertsCounter.count += 1
-    import inspect
-    caller = inspect.stack()[1].filename
-    SelectExpertsCounter.callers[caller] = SelectExpertsCounter.callers.get(caller, 0) + 1
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"select_experts has been called {SelectExpertsCounter.count} times on rank {dist.get_rank()}, Callers breakdown: {SelectExpertsCounter.callers}")
-    
     # DeepSeek V2/V3/R1 uses biased_grouped_top
     if use_grouped_topk:
         assert topk_group is not None

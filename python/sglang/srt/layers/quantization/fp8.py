@@ -457,8 +457,6 @@ class Fp8MoEMethod:
     def __init__(self, quant_config):
         self.quant_config = quant_config
         self.block_quant = self.quant_config.weight_block_size is not None
-        self.apply_call_count = 0
-        self.select_experts_call_count = 0
 
     def create_weights(
         self,
@@ -894,35 +892,26 @@ class Fp8MoEMethod:
             correction_bias=correction_bias, 
         )
 
-        # if print_expert_token_dist:
-            # flatten_topk_ids = topk_ids.view(-1)
-            # local_tokens_per_expert = torch.bincount(flatten_topk_ids, minlength=256)
-            
-            # if self.is_dist_initialized():
-            #     torch.distributed.all_reduce(local_tokens_per_expert, op=torch.distributed.ReduceOp.SUM)
-            
-        # if dist.get_rank() == 0:
-        instance_id = id(self)
-        from sglang.srt.models.deepseek_v2 import DeepseekV2Model
-        layer_id = DeepseekV2Model.layer_id_print
-        self.apply_call_count += 1
-        self.select_experts_call_count += 1
-        logger.info(f"Fp8MoEMethod Instance ID: {id(self)}, apply() has been called {self.apply_call_count} times on rank {dist.get_rank()}, select_experts called by this Fp8MoEMethod instance: {self.select_experts_call_count} times")
-        Fp8MoEMethod_INSTANCE_ID.add(instance_id)
-        Fp8MoEMethod_INSTANCE_LAYER_MAP[instance_id] = layer_id
-            
-            # if layer_id not in MOE_TOKENS_DIST_LAYER_SUM:
-            #     MOE_TOKENS_DIST_LAYER_SUM[layer_id] = local_tokens_per_expert.clone()
-            # else:
-            #     MOE_TOKENS_DIST_LAYER_SUM[layer_id] += local_tokens_per_expert
-                
-            
-                
-            # if self.count == 1027:
-        logger.info(f"Fp8MoEMethod Instance ID: {id(self)},In {self.apply_call_count} apply(), plotting {layer_id}_token_distribution.png")
-                # output_dir = "/home/bingxche/trace_dir/moe_token_distribution_plots"
-                # os.makedirs(output_dir, exist_ok=True)
+        if print_expert_token_dist:
+            # output_dir = "/home/bingxche/trace_dir/moe_token_distribution_plots"
 
+            # Save token distribution to CSV files
+            output_dir = "/home/bingxche/trace_dir/moe_token_distribution"
+            os.makedirs(output_dir, exist_ok=True)
+            flatten_topk_ids = topk_ids.view(-1)
+            token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)
+            
+            # if dist.get_rank() == 0:
+            from sglang.srt.models.deepseek_v2 import DeepseekV2Model
+            layer_id = DeepseekV2Model.layer_id_print
+            for layer_id in range(3, 61):
+                csv_path = os.path.join(output_dir, f"{layer_id}_{dist.get_rank()}.csv")
+                with open(csv_path, "a") as f:
+                    token_dist = token_dist_per_expert.cpu().tolist()
+                    f.write(",".join(map(str, token_dist)) + "\n")
+                    
+                    
+                    
                 # for layer_id in sorted(MOE_TOKENS_DIST_LAYER_SUM.keys()):
                 #     tokens_per_expert = MOE_TOKENS_DIST_LAYER_SUM[layer_id].detach().cpu().numpy()
                     
@@ -937,12 +926,6 @@ class Fp8MoEMethod:
                     #     plt.savefig(os.path.join(output_dir, f"layer_{layer_id}_token_dist.png"))
                     #     plt.close()
                         
-                
-                    # logger.info(f"------------------------------------------------------------------------------------------------")
-                    # logger.info(f"collected token distribution list of layer_id = {layer_id}")
-                    # logger.info(f"layer_id = {layer_id} now has token distribution list: {MOE_TOKENS_DIST_LAYER_SUM[layer_id].detach().cpu().numpy()}")
-                
-
         if _is_hip and get_bool_env_var("USE_INT4_WEIGHT"):
             # TODO: add triton kernel and add check get_bool_env_var("CK_MOE")
             assert not no_combine, f"{no_combine=} is not supported."
