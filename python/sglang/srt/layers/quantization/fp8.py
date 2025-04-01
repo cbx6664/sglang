@@ -5,7 +5,6 @@ import logging
 import os
 from typing import Any, Callable, Dict, List, Optional
 
-from matplotlib import pyplot as plt
 
 import torch
 import torch.distributed as dist
@@ -896,10 +895,15 @@ class Fp8MoEMethod:
             # output_dir = "/home/bingxche/trace_dir/moe_token_distribution_plots"
 
             # Save token distribution to CSV files
-            output_dir = "/home/bingxche/trace_dir/moe_token_distribution"
+            output_dir = "/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b"
             os.makedirs(output_dir, exist_ok=True)
             flatten_topk_ids = topk_ids.view(-1)
-            token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)
+            
+            # DeepSeek-V3 has 266 shared experts in each layer, totally 61 layers with 58 MoE layers(layer4 - layer61)
+            # token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)
+            
+            # Mixtral 8x7B has 8 experts in each layer, totally 32 layers, all are MoE layers
+            token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=8)
             
             if dist.get_rank() == 0:
                 from sglang.srt.models.deepseek_v2 import DeepseekV2Model
@@ -912,21 +916,6 @@ class Fp8MoEMethod:
                             token_dist = token_dist_per_expert.cpu().tolist()
                             f.write(",".join(map(str, token_dist)) + "\n")
                     
-                    
-                    
-                # for layer_id in sorted(MOE_TOKENS_DIST_LAYER_SUM.keys()):
-                #     tokens_per_expert = MOE_TOKENS_DIST_LAYER_SUM[layer_id].detach().cpu().numpy()
-                    
-                #     plt.figure(figsize=(12, 6))
-                #     plt.bar(range(len(tokens_per_expert)), tokens_per_expert)
-                #     plt.title(f"Layer {layer_id} - Expert Token Distribution")
-                #     plt.xlabel("Expert ID")
-                #     plt.ylabel("Number of Tokens")
-                #     plt.tight_layout()
-                        
-                    #     # 保存图片
-                    #     plt.savefig(os.path.join(output_dir, f"layer_{layer_id}_token_dist.png"))
-                    #     plt.close()
                         
         if _is_hip and get_bool_env_var("USE_INT4_WEIGHT"):
             # TODO: add triton kernel and add check get_bool_env_var("CK_MOE")
@@ -1012,18 +1001,3 @@ class Fp8KVCacheMethod(BaseKVCacheMethod):
     def __init__(self, quant_config: Fp8Config):
         super().__init__(quant_config)
         
-        
-def save_moe_token_distribution_plots(output_dir: str = "/your/plot/path"):
-        os.makedirs(output_dir, exist_ok=True)
-        for layer_id in sorted(MOE_TOKENS_DIST_LAYER_SUM.keys()):
-            tokens = MOE_TOKENS_DIST_LAYER_SUM[layer_id].detach().cpu().numpy()
-            plt.figure(figsize=(12, 6))
-            plt.bar(range(len(tokens)), tokens)
-            plt.title(f"Layer {layer_id} - Expert Token Distribution")
-            plt.xlabel("Expert ID")
-            plt.ylabel("Number of Tokens")
-            plt.tight_layout()
-            plt.savefig(os.path.join(output_dir, f"layer_{layer_id}_token_dist.png"))
-            plt.close()
-            
-__all__ = ["save_moe_token_distribution_plots"]
