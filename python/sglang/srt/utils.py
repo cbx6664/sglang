@@ -84,6 +84,9 @@ def is_hip() -> bool:
 def print_expert_token_dist() -> bool:
     return True if os.environ.get("print_expert_token_dist") == "1" else False
 
+def get_model_name() -> str:
+    return os.environ.get("model_name") 
+
 if is_hip():
     FP8_E4M3_MAX = HIP_FP8_E4M3_FNUZ_MAX
 else:

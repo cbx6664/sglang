@@ -19,6 +19,9 @@ import torch.nn.functional as F
 import torch.distributed as dist
 
 from sglang.srt.utils import get_compiler_backend
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def fused_topk_native(
@@ -179,7 +182,7 @@ def select_experts(
     custom_routing_function: Optional[Callable] = None,
     correction_bias: Optional[torch.Tensor] = None,
     torch_native: bool = False,
-):
+):    
     # DeepSeek V2/V3/R1 uses biased_grouped_top
     if use_grouped_topk:
         assert topk_group is not None
