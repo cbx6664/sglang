@@ -898,7 +898,8 @@ class Fp8MoEMethod:
                 if "mixtral" in get_model_name:
                     logger.info(f"printing mixtral token dist")
                     flatten_topk_ids = topk_ids.view(-1)
-                    output_dir = "/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b"
+                    # output_dir = "/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b"
+                    output_dir = "/work1/amd/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b"
                     os.makedirs(output_dir, exist_ok=True) 
                     from sglang.srt.models.mixtral import MixtralModel
                     layer_id_mixtral = MixtralModel.layer_id_print
@@ -915,7 +916,8 @@ class Fp8MoEMethod:
                 elif "deepseek-v3" in get_model_name:
                     logger.info(f"printing deepseek-v3 token dist")
                     flatten_topk_ids = topk_ids.view(-1)
-                    output_dir = "/home/bingxche/trace_dir/moe_token_distribution/deepseek-v3"
+                    # output_dir = "/home/bingxche/trace_dir/moe_token_distribution/deepseek-v3"
+                    output_dir = "/work1/amd/bingxche/trace_dir/moe_token_distribution/deepseek-v3"
                     os.makedirs(output_dir, exist_ok=True) 
                     from sglang.srt.models.deepseek_v2 import DeepseekV2Model
                     layer_id_deepseek = DeepseekV2Model.layer_id_print  
