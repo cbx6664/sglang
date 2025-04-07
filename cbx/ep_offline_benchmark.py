@@ -50,7 +50,8 @@ def sample_requests_moe():
 def profile_run_sglang(prompts, sampling_params):
     engine = get_engine_instance()
     input_ids = [prompt[0] for prompt in prompts]
-    profile_dir = "/home/bingxche/trace_dir"
+    # profile_dir = "/home/bingxche/trace_dir"
+    profile_dir = "/work1/amd/bingxche/trace_dir"
     Path(profile_dir).mkdir(parents=True, exist_ok=True)
     os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
     with torch.profiler.profile(
