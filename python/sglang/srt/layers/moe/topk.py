@@ -18,7 +18,8 @@ import torch
 import torch.nn.functional as F
 import torch.distributed as dist
 
-from sglang.srt.utils import get_compiler_backend
+from sglang.srt.utils import get_compiler_backend, get_model_name, print_expert_token_dist
+import os
 import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -163,13 +164,6 @@ def biased_grouped_topk(
 
     return topk_weights.to(torch.float32), topk_ids.to(torch.int32)
 
-# Use a class to store the counter state because:
-# 1. Global variables in Python modules are not shared between processes
-# 2. A class variable provides a shared state that persists across function calls
-# 3. This allows us to track the total number of calls across the entire program execution
-class SelectExpertsCounter:
-    count = 0  
-    callers = {}  
 
 def select_experts(
     hidden_states: torch.Tensor,
@@ -182,7 +176,10 @@ def select_experts(
     custom_routing_function: Optional[Callable] = None,
     correction_bias: Optional[torch.Tensor] = None,
     torch_native: bool = False,
-):    
+):
+    # import traceback
+    # logger.info("Stack Trace:\n" + "".join(traceback.format_stack()))
+    
     # DeepSeek V2/V3/R1 uses biased_grouped_top
     if use_grouped_topk:
         assert topk_group is not None
@@ -227,5 +224,41 @@ def select_experts(
             topk=top_k,
             renormalize=renormalize,
         )
+        
+        
+    if print_expert_token_dist:
+        # if dist.get_rank() == 0:
+        
+        if "mixtral" in get_model_name():
+            logger.info(f"printing mixtral token dist")
+            flatten_topk_ids = topk_ids.view(-1)
+            output_dir = "/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b_tp_3"
+            os.makedirs(output_dir, exist_ok=True) 
+            from sglang.srt.models.mixtral import MixtralModel
+            layer_id_mixtral = MixtralModel.layer_id_print
+            # Mixtral 8x7B has 8 experts in each layer, totally 32 layers, all are MoE layers
+            token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=8)
+            for i in range(32):
+                if i == layer_id_mixtral:
+                    csv_path = os.path.join(output_dir, f"layer_{layer_id_mixtral}_token_distribution_rank_{dist.get_rank()}.csv")
+                    with open(csv_path, "a") as f:
+                        token_dist = token_dist_per_expert.cpu().tolist()
+                        f.write(",".join(map(str, token_dist)) + "\n")
+        
+        elif "deepseek-v3" in get_model_name():
+            logger.info(f"printing deepseek-v3 token dist")
+            flatten_topk_ids = topk_ids.view(-1)
+            output_dir = "/home/bingxche/trace_dir/moe_token_distribution/deepseek-v3_tp"
+            os.makedirs(output_dir, exist_ok=True) 
+            from sglang.srt.models.deepseek_v2 import DeepseekV2Model
+            layer_id_deepseek = DeepseekV2Model.layer_id_print  
+            # DeepSeek-V3 has 266 shared experts in each layer, totally 61 layers with 58 MoE layers(layer4 - layer61)
+            token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)     
+            for i in range(3, 61):
+                if i == layer_id_deepseek:
+                    csv_path = os.path.join(output_dir, f"layer_{layer_id_deepseek}_token_distribution_rank_{dist.get_rank()}.csv")
+                    with open(csv_path, "a") as f:
+                        token_dist = token_dist_per_expert.cpu().tolist()
+                        f.write(",".join(map(str, token_dist)) + "\n")
 
     return topk_weights, topk_ids

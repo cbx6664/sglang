@@ -57,9 +57,7 @@ from sglang.srt.utils import (
     print_expert_token_dist,
     get_model_name,
 )
-Fp8MoEMethod_INSTANCE_ID = set()
-Fp8MoEMethod_INSTANCE_LAYER_MAP = {}
-MOE_TOKENS_DIST_LAYER_SUM: Dict[int, torch.Tensor] = {}
+
 ACTIVATION_SCHEMES = ["static", "dynamic"]
 
 _is_hip = is_hip()
@@ -892,42 +890,42 @@ class Fp8MoEMethod:
             correction_bias=correction_bias, 
         )
 
-        if print_expert_token_dist:
-            if dist.get_rank() == 0:
+        # if print_expert_token_dist:
+        #     if dist.get_rank() == 0:
                 
-                if "mixtral" in get_model_name:
-                    logger.info(f"printing mixtral token dist")
-                    flatten_topk_ids = topk_ids.view(-1)
-                    output_dir = "/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b"
-                    os.makedirs(output_dir, exist_ok=True) 
-                    from sglang.srt.models.mixtral import MixtralModel
-                    layer_id_mixtral = MixtralModel.layer_id_print
-                    # Mixtral 8x7B has 8 experts in each layer, totally 32 layers, all are MoE layers
-                    token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=8)
-                    for i in range(32):
-                        if i == layer_id_mixtral:
-                            # csv_path = os.path.join(output_dir, f"layer_{layer_id}_rank_{dist.get_rank()}.csv")
-                            csv_path = os.path.join(output_dir, f"layer_{layer_id_mixtral}_token_distribution.csv")
-                            with open(csv_path, "a") as f:
-                                token_dist = token_dist_per_expert.cpu().tolist()
-                                f.write(",".join(map(str, token_dist)) + "\n")
+        #         if "mixtral" in get_model_name():
+        #             logger.info(f"printing mixtral token dist")
+        #             flatten_topk_ids = topk_ids.view(-1)
+        #             output_dir = "/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b"
+        #             os.makedirs(output_dir, exist_ok=True) 
+        #             from sglang.srt.models.mixtral import MixtralModel
+        #             layer_id_mixtral = MixtralModel.layer_id_print
+        #             # Mixtral 8x7B has 8 experts in each layer, totally 32 layers, all are MoE layers
+        #             token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=8)
+        #             for i in range(32):
+        #                 if i == layer_id_mixtral:
+        #                     # csv_path = os.path.join(output_dir, f"layer_{layer_id}_rank_{dist.get_rank()}.csv")
+        #                     csv_path = os.path.join(output_dir, f"layer_{layer_id_mixtral}_token_distribution.csv")
+        #                     with open(csv_path, "a") as f:
+        #                         token_dist = token_dist_per_expert.cpu().tolist()
+        #                         f.write(",".join(map(str, token_dist)) + "\n")
                 
-                elif "deepseek-v3" in get_model_name:
-                    logger.info(f"printing deepseek-v3 token dist")
-                    flatten_topk_ids = topk_ids.view(-1)
-                    output_dir = "/home/bingxche/trace_dir/moe_token_distribution/deepseek-v3"
-                    os.makedirs(output_dir, exist_ok=True) 
-                    from sglang.srt.models.deepseek_v2 import DeepseekV2Model
-                    layer_id_deepseek = DeepseekV2Model.layer_id_print  
-                    # DeepSeek-V3 has 266 shared experts in each layer, totally 61 layers with 58 MoE layers(layer4 - layer61)
-                    token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)     
-                    for i in range(3, 61):
-                        if i == layer_id_deepseek:
-                            # csv_path = os.path.join(output_dir, f"layer_{layer_id}_rank_{dist.get_rank()}.csv")
-                            csv_path = os.path.join(output_dir, f"layer_{layer_id_deepseek}_token_distribution.csv")
-                            with open(csv_path, "a") as f:
-                                token_dist = token_dist_per_expert.cpu().tolist()
-                                f.write(",".join(map(str, token_dist)) + "\n")
+        #         elif "deepseek-v3" in get_model_name():
+        #             logger.info(f"printing deepseek-v3 token dist")
+        #             flatten_topk_ids = topk_ids.view(-1)
+        #             output_dir = "/home/bingxche/trace_dir/moe_token_distribution/deepseek-v3"
+        #             os.makedirs(output_dir, exist_ok=True) 
+        #             from sglang.srt.models.deepseek_v2 import DeepseekV2Model
+        #             layer_id_deepseek = DeepseekV2Model.layer_id_print  
+        #             # DeepSeek-V3 has 266 shared experts in each layer, totally 61 layers with 58 MoE layers(layer4 - layer61)
+        #             token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)     
+        #             for i in range(3, 61):
+        #                 if i == layer_id_deepseek:
+        #                     # csv_path = os.path.join(output_dir, f"layer_{layer_id}_rank_{dist.get_rank()}.csv")
+        #                     csv_path = os.path.join(output_dir, f"layer_{layer_id_deepseek}_token_distribution.csv")
+        #                     with open(csv_path, "a") as f:
+        #                         token_dist = token_dist_per_expert.cpu().tolist()
+        #                         f.write(",".join(map(str, token_dist)) + "\n")
                     
                         
         if _is_hip and get_bool_env_var("USE_INT4_WEIGHT"):

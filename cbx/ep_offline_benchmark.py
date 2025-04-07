@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 
 def get_engine_instance():
     server_args = ServerArgs(
-        # model_path="/scratch/bingxche/Mixtral-8x7B-Instruct-v0.1",
-        model_path="/home/bingxche/Mixtral-8x7B-Instruct-v0.1",
+        model_path="/scratch/bingxche/Mixtral-8x7B-Instruct-v0.1",
+        # model_path="/home/bingxche/Mixtral-8x7B-Instruct-v0.1",
         # model_path="/home/bingxche/deepseek-v3",
+        # model_path="/scratch/bingxche/deepseek-v3",
         tp_size=8,
         # dp_size=8,
         # ep_size=8,
@@ -27,11 +28,12 @@ def get_engine_instance():
         trust_remote_code=True,
         disable_cuda_graph=True,
     )
+    os.environ["model_name"] = server_args.model_path.lower()
     return sgl.Engine(**dataclasses.asdict(server_args))
 
 def sample_requests_moe():
-    processed_data = pd.read_pickle("/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").iloc[0:100]
-    # processed_data = pd.read_pickle("/scratch/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").iloc[0:100]
+    # processed_data = pd.read_pickle("/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").iloc[0:100]
+    processed_data = pd.read_pickle("/scratch/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").iloc[0:100]
     
     prompts: List[Tuple[int, int, int]] = []
     for idx, request in processed_data.iterrows():
@@ -111,7 +113,6 @@ def run_sglang(prompts, sampling_params):
 def main(enable_profiling: bool = False):
     # whether print token distribution
     os.environ["print_expert_token_dist"] = "1"
-    os.environ["model_name"] = "mixtral"
     requests = sample_requests_moe()
     prompts = requests
     
