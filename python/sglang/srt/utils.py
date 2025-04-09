@@ -84,6 +84,9 @@ def is_hip() -> bool:
 def print_expert_token_dist() -> bool:
     return True if os.environ.get("print_expert_token_dist") == "1" else False
 
+def use_eplb_to_calculate_experts_gpu_placement() -> bool:
+    return True if os.environ.get("use_eplb_to_calculate_experts_gpu_placement") == "1" else False
+
 def get_model_name() -> str:
     return os.environ.get("model_name") 
 
