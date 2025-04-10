@@ -25,6 +25,30 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+global select_experts_call_count, token_distribution_dict
+select_experts_call_count = 0
+token_distribution_dict = {}
+
+# Make it accessible to other modules
+def get_token_distribution_dict():
+    global token_distribution_dict
+    return token_distribution_dict
+
+
+def reset_token_distribution_dict():
+    global token_distribution_dict
+    token_distribution_dict = {}
+
+
+def get_select_experts_call_count():
+    global select_experts_call_count
+    return select_experts_call_count
+
+
+def reset_select_experts_call_count():
+    global select_experts_call_count
+    select_experts_call_count = 0
+
 
 def fused_topk_native(
     hidden_states: torch.Tensor,
@@ -178,6 +202,9 @@ def select_experts(
     correction_bias: Optional[torch.Tensor] = None,
     torch_native: bool = False,
 ):
+    global select_experts_call_count
+    select_experts_call_count += 1
+    
     # import traceback
     # logger.info("Stack Trace:\n" + "".join(traceback.format_stack()))
     
@@ -226,47 +253,60 @@ def select_experts(
             renormalize=renormalize,
         )
         
-    if use_eplb_to_calculate_experts_gpu_placement:
-        if dist.get_rank() == 0:
-            logger.info(f"Using DeepSeek-EPLB to calculate experts-gpu placement.")
-            if "mixtral" in get_model_name():
-                flatten_topk_ids = topk_ids.view(-1)
-                output_dir = "/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b_ep8_3"
-                os.makedirs(output_dir, exist_ok=True)
-                from cbx.load_balancer import eplb 
-                from sglang.srt.models.mixtral import MixtralModel
-                layer_id_mixtral = MixtralModel.layer_id_print
-                # Mixtral 8x7B has 8 experts in each layer, totally 32 layers, all are MoE layers
-                token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=8)
-                token_dist_for_each_layer = []
-                for i in range(32):
-                    if i == layer_id_mixtral:
-                        # save to list
-                        token_dist_for_each_layer.append(token_dist_per_expert.cpu().tolist())
+    # if use_eplb_to_calculate_experts_gpu_placement:
+    #     if dist.get_rank() == 0:
+    #         logger.info(f"Using DeepSeek-EPLB to calculate experts-gpu placement.")
+    #         if "mixtral" in get_model_name():
+    #             flatten_topk_ids = topk_ids.view(-1)
+    #             output_dir = "/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b_ep8_3"
+    #             os.makedirs(output_dir, exist_ok=True)
+    #             # from cbx.load_balancer import eplb 
+    #             from sglang.srt.models.mixtral import MixtralModel
+    #             layer_id_mixtral = MixtralModel.layer_id_print
+    #             # Mixtral 8x7B has 8 experts in each layer, totally 32 layers, all are MoE layers
+    #             token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=8)
+    #             token_dist_for_each_layer = []
+    #             for i in range(32):
+    #                 if i == layer_id_mixtral:
+    #                     # save to list
+    #                     token_dist_for_each_layer.append(token_dist_per_expert.cpu().tolist())
                         
-                        # save to csv
-                        csv_path = os.path.join(output_dir, f"layer_{layer_id_mixtral}_token_distribution_rank_{dist.get_rank()}.csv")
-                        with open(csv_path, "a") as f:
-                            token_dist = token_dist_per_expert.cpu().tolist()
-                            f.write(",".join(map(str, token_dist)) + "\n")
-        
+    #                     # save to csv
+    #                     csv_path = os.path.join(output_dir, f"layer_{layer_id_mixtral}_token_distribution_rank_{dist.get_rank()}.csv")
+    #                     with open(csv_path, "a") as f:
+    #                         token_dist = token_dist_per_expert.cpu().tolist()
+    #                         f.write(",".join(map(str, token_dist)) + "\n")
+
+    
     if print_expert_token_dist:
         if dist.get_rank() == 0:
             if "mixtral" in get_model_name():
                 logger.info(f"printing mixtral token dist")
                 flatten_topk_ids = topk_ids.view(-1)
-                output_dir = f"/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b_ep4_0"
+                output_dir = f"/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b_ep4_2"
                 os.makedirs(output_dir, exist_ok=True) 
                 from sglang.srt.models.mixtral import MixtralModel
                 layer_id_mixtral = MixtralModel.layer_id_print
                 # Mixtral 8x7B has 8 experts in each layer, totally 32 layers, all are MoE layers
                 token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=8)
-                for i in range(32):
-                    if i == layer_id_mixtral:
-                        csv_path = os.path.join(output_dir, f"layer_{layer_id_mixtral}_token_distribution_rank_{dist.get_rank()}.csv")
-                        with open(csv_path, "a") as f:
-                            token_dist = token_dist_per_expert.cpu().tolist()
-                            f.write(",".join(map(str, token_dist)) + "\n")
+                # for i in range(32):
+                    # if i == layer_id_mixtral:
+                # In the selection placeholder:
+                if layer_id_mixtral not in token_distribution_dict:
+                    token_distribution_dict[layer_id_mixtral] = []
+                    
+                # Accumulate the current distribution
+                token_distribution_dict[layer_id_mixtral].append(token_dist_per_expert.cpu().tolist())
+
+                # Still save to CSV as before
+                # csv_path = os.path.join(output_dir, f"layer_{layer_id_mixtral}_token_distribution_rank_{dist.get_rank()}.csv")
+                # with open(csv_path, "a") as f:
+                #     token_dist = token_dist_per_expert.cpu().tolist()
+                #     f.write(",".join(map(str, token_dist)) + "\n")
+
+                # Log the accumulated distributions occasionally (e.g., every 10 calls)
+                if select_experts_call_count % 10 == 0:
+                    logger.info(f"Accumulated token distributions for layer {layer_id_mixtral}: {len(token_distribution_dict[layer_id_mixtral])} samples")
             
             elif "deepseek-v3" in get_model_name():
                 logger.info(f"printing deepseek-v3 token dist")
