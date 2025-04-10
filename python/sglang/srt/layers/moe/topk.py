@@ -362,18 +362,16 @@ def select_experts(
             elif "deepseek-v3" in get_model_name():
                 logger.info(f"printing deepseek-v3 token dist")
                 flatten_topk_ids = topk_ids.view(-1)
-                output_dir = "/home/bingxche/trace_dir/moe_token_distribution/deepseek-v3_tp"
+                output_dir = "/home/bingxche/trace_dir/moe_token_distribution/deepseek-v3_tp8_0"
                 os.makedirs(output_dir, exist_ok=True) 
                 from sglang.srt.models.deepseek_v2 import DeepseekV2Model
                 layer_id_deepseek = DeepseekV2Model.layer_id_print  
                 # DeepSeek-V3 has 266 shared experts in each layer, totally 61 layers with 58 MoE layers(layer4 - layer61)
                 token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)     
-                for i in range(3, 61):
-                    if i == layer_id_deepseek:
-                        csv_path = os.path.join(output_dir, f"layer_{layer_id_deepseek}_token_distribution_rank_{dist.get_rank()}.csv")
-                        with open(csv_path, "a") as f:
-                            token_dist = token_dist_per_expert.cpu().tolist()
-                            f.write(",".join(map(str, token_dist)) + "\n")
+                csv_path = os.path.join(output_dir, f"layer_{layer_id_deepseek}_token_distribution.csv")
+                with open(csv_path, "a") as f:
+                    token_dist = token_dist_per_expert.cpu().tolist()
+                    f.write(",".join(map(str, token_dist)) + "\n")
 
     
     

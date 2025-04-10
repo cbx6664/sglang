@@ -21,14 +21,14 @@ logger = logging.getLogger(__name__)
 def get_engine_instance():
     server_args = ServerArgs(
         # model_path="/scratch/bingxche/Mixtral-8x7B-Instruct-v0.1",
-        model_path="/home/bingxche/Mixtral-8x7B-Instruct-v0.1",
-        # model_path="/home/bingxche/deepseek-v3",
+        # model_path="/home/bingxche/Mixtral-8x7B-Instruct-v0.1",
+        model_path="/home/bingxche/deepseek-v3",
         # model_path="/scratch/bingxche/deepseek-v3",
-        tp_size=4,
+        tp_size=8,
         # dp_size=8,
-        ep_size=4,
+        # ep_size=4,
         # using "enable_ep_moe" will cause error: Unsupported conversion from 'f8E4M3FN' to 'f16'
-        enable_ep_moe=True,
+        # enable_ep_moe=True,
         trust_remote_code=True,
         disable_cuda_graph=True,
     )
@@ -36,15 +36,12 @@ def get_engine_instance():
     return sgl.Engine(**dataclasses.asdict(server_args))
 
 def sample_requests_moe():
-    processed_data = pd.read_pickle("/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").iloc[0:100]
-    # processed_data = pd.read_pickle("/scratch/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").iloc[0:100]
+    processed_data = pd.read_pickle("/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl")
     
     prompts: List[Tuple[int, int, int]] = []
     for idx, request in processed_data.iterrows():
         prompts.append((request['tok_input'], request['tok_input_len'], request['tok_ref_output_len']))
-        # prompts.append((request['tok_input'], request['tok_input_len'], request['tok_ref_output_len']))
-        # prompts.append((request['tok_input'], request['tok_input_len'], request['tok_ref_output_len']))
-        # prompts.append((request['tok_input'], request['tok_input_len'], request['tok_ref_output_len']))
+        prompts.append((request['tok_input'], request['tok_input_len'], request['tok_ref_output_len']))
    
     # sort prompts by descending length
     sorted_prompts = sorted(prompts, key=lambda x: x[1], reverse=True)
