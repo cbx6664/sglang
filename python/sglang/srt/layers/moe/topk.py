@@ -18,6 +18,8 @@ import torch
 import torch.nn.functional as F
 import torch.distributed as dist
 import atexit
+import json
+import os
 
 from sglang.srt.utils import get_compiler_backend, get_model_name, print_expert_token_dist, use_eplb_to_calculate_experts_gpu_placement
 import os
@@ -39,6 +41,36 @@ def get_expert_token_distribution_dict():
 
 def get_select_experts_call_count():
     return _select_experts_call_count
+
+# 添加数据导出函数，将收集的数据保存到文件
+def export_moe_statistics():
+    # 获取当前rank
+    rank = dist.get_rank()
+    
+    # 获取模型名称
+    model_name = get_model_name()
+    if not model_name:
+        model_name = "unknown_model"
+    
+    # 设置输出目录
+    output_dir = f"/home/bingxche/trace_dir/{model_name}"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 直接保存token分布数据 - 不做序列化转换
+    token_dist_file = os.path.join(output_dir, f"token_distribution_rank_{rank}.txt")
+    with open(token_dist_file, "w") as f:
+        for layer_id, distribution in _token_distribution_dict.items():
+            f.write(f"Layer {layer_id}: {','.join(map(str, distribution))}\n")
+    
+    # 保存调用计数
+    call_count_file = os.path.join(output_dir, f"call_count_rank_{rank}.txt")
+    with open(call_count_file, "w") as f:
+        f.write(str(_select_experts_call_count))
+    
+    logger.info(f"MoE original statistics for rank {rank} exported to {output_dir}")
+
+# 注册退出钩子
+atexit.register(export_moe_statistics)
 
 # def initialize_manager():
 #     """Initialize the multiprocessing manager only when needed - lazy initialization"""
@@ -318,14 +350,11 @@ def select_experts(
                 
                 global _token_distribution_dict
                 if layer_id_mixtral not in _token_distribution_dict:
-                    _token_distribution_dict[layer_id_mixtral] = []
-                    
-                if len(_token_distribution_dict[layer_id_mixtral]) == 0:
-                    _token_distribution_dict[layer_id_mixtral].append(token_dist_per_expert.cpu().tolist())
+                    _token_distribution_dict[layer_id_mixtral] = token_dist_per_expert.cpu().tolist()
                 else:
-                    current_sum = _token_distribution_dict[layer_id_mixtral][0]
+                    current_sum = _token_distribution_dict[layer_id_mixtral]
                     new_dist = token_dist_per_expert.cpu().tolist()
-                    _token_distribution_dict[layer_id_mixtral][0] = [current_sum[i] + new_dist[i] for i in range(len(new_dist))]
+                    _token_distribution_dict[layer_id_mixtral] = [current_sum[i] + new_dist[i] for i in range(len(new_dist))]
 
                 global _select_experts_call_count
                 _select_experts_call_count += 1
