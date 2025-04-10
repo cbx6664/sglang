@@ -117,7 +117,7 @@ def run_sglang(prompts, sampling_params):
 
 def main(enable_profiling: bool = False):
     # whether print token distribution
-    os.environ["print_expert_token_dist"] = "1"
+    os.environ["print_expert_token_dist"] = "0"
     os.environ["use_eplb_to_calculate_experts_gpu_placement"] = "0"
     os.environ["model_name"] = "mixtral"
     requests = sample_requests_moe()
