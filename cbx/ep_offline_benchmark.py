@@ -7,7 +7,10 @@ from typing import List, Tuple, Dict
 import sglang as sgl
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.sampling.sampling_params import SamplingParams
-from sglang.srt.layers.moe.topk import get_select_experts_call_count, reset_select_experts_call_count, get_token_distribution_dict, reset_token_distribution_dict
+from sglang.srt.layers.moe.topk import ( 
+                                        get_select_experts_call_count, 
+                                        get_expert_token_distribution_dict, 
+                                        )
 from pathlib import Path
 import os
 import logging
@@ -79,7 +82,6 @@ def profile_run_sglang(prompts, sampling_params):
     engine.shutdown()
 
 def run_sglang(prompts, sampling_params):
-    reset_select_experts_call_count()
     engine = get_engine_instance()
     start = time.perf_counter()
     # Convert token IDs to input_ids format for SGLang
@@ -92,8 +94,6 @@ def run_sglang(prompts, sampling_params):
     )
     
     end = time.perf_counter()
-    expert_calls = get_select_experts_call_count()
-    print(f"select_experts() was called {expert_calls} times")
     
     # Extract output tokens from responses
     output_prompts = []
@@ -117,7 +117,7 @@ def run_sglang(prompts, sampling_params):
 
 def main(enable_profiling: bool = False):
     # whether print token distribution
-    os.environ["print_expert_token_dist"] = "0"
+    os.environ["print_expert_token_dist"] = "1"
     os.environ["use_eplb_to_calculate_experts_gpu_placement"] = "0"
     os.environ["model_name"] = "mixtral"
     requests = sample_requests_moe()
@@ -131,15 +131,13 @@ def main(enable_profiling: bool = False):
         "ignore_eos": False,
     }
     
-    # Reset token distribution dictionary
-    reset_token_distribution_dict()
-    
     if enable_profiling:
         # Use PyTorch profiler directly instead of SGLang's problematic profiling interface
         profile_run_sglang(prompts, sampling_params)
     else:
         prompts, output_prompts, elapsed_time = run_sglang(requests, sampling_params)
-        token_dist_dic = get_token_distribution_dict()
+        token_dist_dic = get_expert_token_distribution_dict()
+        select_experts_call_count = get_select_experts_call_count()
         assert len(prompts) == len(output_prompts), "prompt input and output lengths are different"
         total_num_tokens = sum(len(prompts[idx][0]) + len(output_prompts[idx]) for idx in range(0, len(prompts)))
         total_output_tokens = sum(len(output_prompt) for output_prompt in output_prompts)
@@ -147,7 +145,8 @@ def main(enable_profiling: bool = False):
               f"{total_num_tokens / elapsed_time:.2f} total tokens/s, "
               f"{total_output_tokens / elapsed_time:.2f} output tokens/s")
         
-        logger.info(f"Token_distribution_dict.shape: {token_dist_dic}")
+        logger.info(f"Token_distribution_dict: {token_dist_dic}")
+        logger.info(f"select_experts_call_count: {select_experts_call_count}")
 
 if __name__ == "__main__":
     main(False)  # Set to True to enable profiling
