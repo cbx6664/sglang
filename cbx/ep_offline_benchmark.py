@@ -32,11 +32,11 @@ def get_engine_instance():
         trust_remote_code=True,
         disable_cuda_graph=True,
     )
-    os.environ["model_name"] = server_args.model_path.lower()
+    os.environ["model_name"] = os.path.basename(server_args.model_path).lower()
     return sgl.Engine(**dataclasses.asdict(server_args))
 
 def sample_requests_moe():
-    processed_data = pd.read_pickle("/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl")
+    processed_data = pd.read_pickle("/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").head(100)
     
     prompts: List[Tuple[int, int, int]] = []
     for idx, request in processed_data.iterrows():
@@ -114,7 +114,7 @@ def run_sglang(prompts, sampling_params):
 
 def main(enable_profiling: bool = False):
     # whether print token distribution
-    os.environ["print_expert_token_dist"] = "1"
+    os.environ["print_expert_token_dist"] = "0"
     os.environ["use_eplb_to_calculate_experts_gpu_placement"] = "0"
     requests = sample_requests_moe()
     prompts = requests

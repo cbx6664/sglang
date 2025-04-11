@@ -32,7 +32,8 @@ logger = logging.getLogger(__name__)
 # # TODO: pass these two variables to the MainProcess, consider the reason of subprocess, sprawning
 # _manager = None
 # _shared_dict = None
-# # Local variables as fallback
+
+# Local variables as fallback
 _select_experts_call_count = 0
 _token_distribution_dict = {}
 
@@ -42,35 +43,37 @@ def get_expert_token_distribution_dict():
 def get_select_experts_call_count():
     return _select_experts_call_count
 
-# 添加数据导出函数，将收集的数据保存到文件
-def export_moe_statistics():
-    # 获取当前rank
-    rank = dist.get_rank()
+# def export_moe_statistics():
+#     # Check if distributed is initialized before getting rank
+#     if dist.is_initialized():
+#         rank = dist.get_rank()
+#     else:
+#         rank = 0  # Default to rank 0 if not in distributed mode
     
-    # 获取模型名称
-    model_name = get_model_name()
-    if not model_name:
-        model_name = "unknown_model"
+#     # Get model name
+#     model_name = get_model_name()
+#     if not model_name:
+#         model_name = "unknown_model"
     
-    # 设置输出目录
-    output_dir = f"/home/bingxche/trace_dir/{model_name}"
-    os.makedirs(output_dir, exist_ok=True)
+#     # Set output directory
+#     output_dir = f"/home/bingxche/trace_dir/{model_name}"
+#     os.makedirs(output_dir, exist_ok=True)
     
-    # 直接保存token分布数据 - 不做序列化转换
-    token_dist_file = os.path.join(output_dir, f"token_distribution_rank_{rank}.txt")
-    with open(token_dist_file, "w") as f:
-        for layer_id, distribution in _token_distribution_dict.items():
-            f.write(f"Layer {layer_id}: {','.join(map(str, distribution))}\n")
+#     # Save token distribution data
+#     token_dist_file = os.path.join(output_dir, f"token_distribution_rank_{rank}.txt")
+#     with open(token_dist_file, "w") as f:
+#         for layer_id, distribution in _token_distribution_dict.items():
+#             f.write(f"Layer {layer_id}: {','.join(map(str, distribution))}\n")
     
-    # 保存调用计数
-    call_count_file = os.path.join(output_dir, f"call_count_rank_{rank}.txt")
-    with open(call_count_file, "w") as f:
-        f.write(str(_select_experts_call_count))
+#     # Save call count
+#     call_count_file = os.path.join(output_dir, f"call_count_rank_{rank}.txt")
+#     with open(call_count_file, "w") as f:
+#         f.write(str(_select_experts_call_count))
     
-    logger.info(f"MoE original statistics for rank {rank} exported to {output_dir}")
+#     logger.info(f"MoE original statistics for rank {rank} exported to {output_dir}")
 
-# 注册退出钩子
-atexit.register(export_moe_statistics)
+# # register exit hook
+# atexit.register(export_moe_statistics)
 
 # def initialize_manager():
 #     """Initialize the multiprocessing manager only when needed - lazy initialization"""
@@ -312,30 +315,6 @@ def select_experts(
             renormalize=renormalize,
         )
 
-    # if use_eplb_to_calculate_experts_gpu_placement:
-    #     if dist.get_rank() == 0:
-    #         logger.info(f"Using DeepSeek-EPLB to calculate experts-gpu placement.")
-    #         if "mixtral" in get_model_name():
-    #             flatten_topk_ids = topk_ids.view(-1)
-    #             output_dir = "/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b_ep8_3"
-    #             os.makedirs(output_dir, exist_ok=True)
-    #             # from cbx.load_balancer import eplb 
-    #             from sglang.srt.models.mixtral import MixtralModel
-    #             layer_id_mixtral = MixtralModel.layer_id_print
-    #             # Mixtral 8x7B has 8 experts in each layer, totally 32 layers, all are MoE layers
-    #             token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=8)
-    #             token_dist_for_each_layer = []
-    #             for i in range(32):
-    #                 if i == layer_id_mixtral:
-    #                     # save to list
-    #                     token_dist_for_each_layer.append(token_dist_per_expert.cpu().tolist())
-                        
-    #                     # save to csv
-    #                     csv_path = os.path.join(output_dir, f"layer_{layer_id_mixtral}_token_distribution_rank_{dist.get_rank()}.csv")
-    #                     with open(csv_path, "a") as f:
-    #                         token_dist = token_dist_per_expert.cpu().tolist()
-    #                         f.write(",".join(map(str, token_dist)) + "\n")
-        
     if print_expert_token_dist:
         if dist.get_rank() == 0:
             if "mixtral" in get_model_name():
@@ -395,7 +374,7 @@ def select_experts(
                 os.makedirs(output_dir, exist_ok=True) 
                 from sglang.srt.models.deepseek_v2 import DeepseekV2Model
                 layer_id_deepseek = DeepseekV2Model.layer_id_print  
-                # DeepSeek-V3 has 266 shared experts in each layer, totally 61 layers with 58 MoE layers(layer4 - layer61)
+                # DeepSeek-V3 has 256 shared experts in each layer, totally 61 layers with 58 MoE layers(layer4 - layer61)
                 token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)     
                 csv_path = os.path.join(output_dir, f"layer_{layer_id_deepseek}_token_distribution.csv")
                 with open(csv_path, "a") as f:
