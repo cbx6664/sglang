@@ -340,7 +340,7 @@ def select_experts(
         if dist.get_rank() == 0:
             if "mixtral" in get_model_name():
                 flatten_topk_ids = topk_ids.view(-1)
-                output_dir = f"/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b_ep4_2"
+                output_dir = f"/home/bingxche/trace_dir/moe_token_distribution/mixtral_8x7b_ep4_3"
                 os.makedirs(output_dir, exist_ok=True) 
                 from sglang.srt.models.mixtral import MixtralModel
                 layer_id_mixtral = MixtralModel.layer_id_print
@@ -391,7 +391,7 @@ def select_experts(
             elif "deepseek-v3" in get_model_name():
                 logger.info(f"printing deepseek-v3 token dist")
                 flatten_topk_ids = topk_ids.view(-1)
-                output_dir = "/home/bingxche/trace_dir/moe_token_distribution/deepseek-v3_tp8_0"
+                output_dir = "/home/bingxche/trace_dir/moe_token_distribution/deepseek-v3_tp8_1"
                 os.makedirs(output_dir, exist_ok=True) 
                 from sglang.srt.models.deepseek_v2 import DeepseekV2Model
                 layer_id_deepseek = DeepseekV2Model.layer_id_print  

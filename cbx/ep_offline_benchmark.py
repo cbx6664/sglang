@@ -21,14 +21,14 @@ logger = logging.getLogger(__name__)
 def get_engine_instance():
     server_args = ServerArgs(
         # model_path="/scratch/bingxche/Mixtral-8x7B-Instruct-v0.1",
-        # model_path="/home/bingxche/Mixtral-8x7B-Instruct-v0.1",
-        model_path="/home/bingxche/deepseek-v3",
+        model_path="/home/bingxche/Mixtral-8x7B-Instruct-v0.1",
+        # model_path="/home/bingxche/deepseek-v3",
         # model_path="/scratch/bingxche/deepseek-v3",
-        tp_size=8,
+        tp_size=4,
         # dp_size=8,
-        # ep_size=4,
+        ep_size=4,
         # using "enable_ep_moe" will cause error: Unsupported conversion from 'f8E4M3FN' to 'f16'
-        # enable_ep_moe=True,
+        enable_ep_moe=True,
         trust_remote_code=True,
         disable_cuda_graph=True,
     )
@@ -41,7 +41,7 @@ def sample_requests_moe():
     prompts: List[Tuple[int, int, int]] = []
     for idx, request in processed_data.iterrows():
         prompts.append((request['tok_input'], request['tok_input_len'], request['tok_ref_output_len']))
-        prompts.append((request['tok_input'], request['tok_input_len'], request['tok_ref_output_len']))
+        # prompts.append((request['tok_input'], request['tok_input_len'], request['tok_ref_output_len']))
    
     # sort prompts by descending length
     sorted_prompts = sorted(prompts, key=lambda x: x[1], reverse=True)
@@ -51,8 +51,8 @@ def sample_requests_moe():
 def profile_run_sglang(prompts, sampling_params):
     engine = get_engine_instance()
     input_ids = [prompt[0] for prompt in prompts]
-    # profile_dir = "/home/bingxche/trace_dir"
-    profile_dir = "/work1/amd/bingxche/trace_dir"
+    profile_dir = "/home/bingxche/trace_dir"
+    # profile_dir = "/work1/amd/bingxche/trace_dir"
     Path(profile_dir).mkdir(parents=True, exist_ok=True)
     os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
     with torch.profiler.profile(
@@ -114,9 +114,8 @@ def run_sglang(prompts, sampling_params):
 
 def main(enable_profiling: bool = False):
     # whether print token distribution
-    os.environ["print_expert_token_dist"] = "0"
+    os.environ["print_expert_token_dist"] = "1"
     os.environ["use_eplb_to_calculate_experts_gpu_placement"] = "0"
-    os.environ["model_name"] = "mixtral"
     requests = sample_requests_moe()
     prompts = requests
     
