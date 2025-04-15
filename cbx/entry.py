@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 def get_engine_instance():
     server_args = ServerArgs(
-        model_path="/scratch/bingxche/Mixtral-8x7B-Instruct-v0.1",
-        # model_path="/home/bingxche/Mixtral-8x7B-Instruct-v0.1",
+        # model_path="/scratch/bingxche/Mixtral-8x7B-Instruct-v0.1",
+        model_path="/home/bingxche/Mixtral-8x7B-Instruct-v0.1",
         # model_path="/home/bingxche/deepseek-v3",
         # model_path="/scratch/bingxche/deepseek-v3",
         tp_size=4,
@@ -32,8 +32,8 @@ def get_engine_instance():
     return sgl.Engine(**dataclasses.asdict(server_args))
 
 def sample_requests_moe():
-    # processed_data = pd.read_pickle("/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl")
-    processed_data = pd.read_pickle("/scratch/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").head(100)
+    processed_data = pd.read_pickle("/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").head(100)
+    # processed_data = pd.read_pickle("/scratch/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").head(100)
     
     prompts: List[Tuple[int, int, int]] = []
     for idx, request in processed_data.iterrows():

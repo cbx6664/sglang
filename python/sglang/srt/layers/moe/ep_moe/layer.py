@@ -412,6 +412,14 @@ class EPMoE(torch.nn.Module):
     ) -> None:
         if expert_id < self.start_expert_id or expert_id > self.end_expert_id:
             return
+        
+        import os 
+        output_dir = "/home/bingxche/trace_dir/weights_loader/mixtral"
+        os.makedirs(output_dir, exist_ok=True) 
+        csv_path = os.path.join(output_dir, f"rank_{self.tp_rank}_weights_loaded_before_converting_expert_id.csv")
+        with open(csv_path, "a") as f:
+            f.write(f"{weight_name},{shard_id},{expert_id}\n")
+            
         expert_id = expert_id - self.start_expert_id
 
         if shard_id not in ("w1", "w2", "w3"):
@@ -438,6 +446,9 @@ class EPMoE(torch.nn.Module):
             param.data[expert_id][self.intermediate_size :, :] = loaded_weight
         else:
             raise ValueError(f"Expected shard_id w1,w2 or w3 but got {shard_id}")
+        
+        
+
 
     def _load_fp8_scale(
         self,
