@@ -413,8 +413,10 @@ class EPMoE(torch.nn.Module):
         if expert_id < self.start_expert_id or expert_id > self.end_expert_id:
             return
         
+         
+        # record global expert_id
         import os 
-        output_dir = "/home/bingxche/trace_dir/weights_loader/mixtral"
+        output_dir = os.environ.get("experts_gpu_output_dir")
         os.makedirs(output_dir, exist_ok=True) 
         csv_path = os.path.join(output_dir, f"rank_{self.tp_rank}_weights_loaded_before_converting_expert_id.csv")
         with open(csv_path, "a") as f:
@@ -437,7 +439,9 @@ class EPMoE(torch.nn.Module):
                 expert_id,
             )
             return
-
+        # logger.info(f"param.data.shape:{param.data.shape}")
+        # param.data.shape:torch.Size([2, 28672, 4096])
+        # param.data.shape:torch.Size([2, 4096, 14336])
         if shard_id == "w2":
             param.data[expert_id] = loaded_weight
         elif shard_id == "w1":
