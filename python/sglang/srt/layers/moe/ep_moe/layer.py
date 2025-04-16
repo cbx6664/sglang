@@ -1,4 +1,6 @@
+from collections import defaultdict
 import logging
+import os
 from typing import Callable, List, Optional, Tuple
 
 import torch
@@ -153,7 +155,7 @@ class EPMoE(torch.nn.Module):
         )
         self.tp_rank = get_tensor_model_parallel_rank()
 
-        self.num_experts = num_experts
+        self.num_experts = int(os.environ.get("NUM_EXPERTS"))
         assert self.num_experts % self.tp_size == 0
         self.num_experts_per_partition = self.num_experts // self.tp_size
         self.start_expert_id = self.tp_rank * self.num_experts_per_partition
@@ -382,6 +384,11 @@ class EPMoE(torch.nn.Module):
         ckpt_up_proj_name: str,
         num_experts: int,
     ) -> List[Tuple[str, str, int, str]]:
+        """ 
+        Iterates through each expert ID from 0 to num_experts-1
+        For each expert, creates three mappings (one for each weight type: gate, down, and up projections)
+        Formats the parameter names according to the expected pattern
+        """
         return [
             # (param_name, weight_name, expert_id, shard_id)
             (
@@ -401,6 +408,46 @@ class EPMoE(torch.nn.Module):
                 ("w3", ckpt_up_proj_name),
             ]
         ]
+        
+    @classmethod
+    def make_expert_params_mapping_from_custome_expert_id(
+        cls,
+        ckpt_gate_proj_name: str,
+        ckpt_down_proj_name: str,
+        ckpt_up_proj_name: str,
+        custom_expert_allocation: List[List[int]],
+    ) -> List[List[Tuple[str, str, int, str]]]:
+        """ 
+        Iterates through each expert ID from 0 to num_experts-1
+        For each expert, creates three mappings (one for each weight type: gate, down, and up projections)
+        Formats the parameter names according to the expected pattern
+        """
+        
+        all_layers_mapping = []
+        
+        for layer_idx, experts_in_this_layer in enumerate(custom_expert_allocation):
+            # build a list for this layer
+            layer_mapping = [
+                (
+                    "experts.w13_"
+                    if weight_name in [ckpt_gate_proj_name, ckpt_up_proj_name]
+                    else "experts.w2_",
+                    
+                    f"experts.{expert_id}.{weight_name}.",
+                    expert_id,
+                    shard_id,
+                )
+                for expert_id in experts_in_this_layer
+                for shard_id, weight_name in [
+                    ("w1", ckpt_gate_proj_name),
+                    ("w2", ckpt_down_proj_name),
+                    ("w3", ckpt_up_proj_name),
+                ]
+            ]
+            all_layers_mapping.append(layer_mapping)
+        
+        return all_layers_mapping
+
 
     def weight_loader(
         self,
@@ -409,48 +456,106 @@ class EPMoE(torch.nn.Module):
         weight_name: str,
         shard_id: str,
         expert_id: int,
+        global_expert_gpu_allocation: List[int],
+        use_custom_expert_allocation: bool = False,
     ) -> None:
-        if expert_id < self.start_expert_id or expert_id > self.end_expert_id:
-            return
         
-         
-        # record global expert_id
-        import os 
-        output_dir = os.environ.get("experts_gpu_output_dir")
-        os.makedirs(output_dir, exist_ok=True) 
-        csv_path = os.path.join(output_dir, f"rank_{self.tp_rank}_weights_loaded_before_converting_expert_id.csv")
-        with open(csv_path, "a") as f:
-            f.write(f"{weight_name},{shard_id},{expert_id}\n")
+        """ 
+        Expert Filtering: Only processes experts assigned to this worker (between start_expert_id and end_expert_id)
+        Expert ID Mapping: Converts global expert ID to local index 
+        """
+        
+        if use_custom_expert_allocation:
+            # get global expert ids in this rank by slicing global_expert_gpu_allocation
+            global_expert_ids_in_this_rank = global_expert_gpu_allocation[self.start_expert_id:self.end_expert_id+1]
             
-        expert_id = expert_id - self.start_expert_id
+            # global_expert_id to local_expert_id for rank
+            expert_map = defaultdict(list)
+            for idx, g_id in enumerate(global_expert_ids_in_this_rank):
+                expert_map[g_id].append(idx)
+            
+            if expert_id not in expert_map:
+                return  
+            
+            local_expert_id = expert_map[expert_id].pop(0)
+            
+            # record global expert_id
+            import os 
+            output_dir = os.environ.get("experts_gpu_output_dir")
+            os.makedirs(output_dir, exist_ok=True) 
+            csv_path = os.path.join(output_dir, f"rank_{self.tp_rank}_weights_loaded_before_converting_expert_id.csv")
+            with open(csv_path, "a") as f:
+                f.write(f"{weight_name},{shard_id},{expert_id}\n")
+                
 
-        if shard_id not in ("w1", "w2", "w3"):
-            raise ValueError(
-                f"shard_id must be ['w1','w2','w3'] but " f"got {shard_id}."
-            )
+            if shard_id not in ("w1", "w2", "w3"):
+                raise ValueError(
+                    f"shard_id must be ['w1','w2','w3'] but " f"got {shard_id}."
+                )
 
-        # Special case for fp8 scales.
-        if "scale" in weight_name:
-            self._load_fp8_scale(
-                param.data,
-                loaded_weight,
-                weight_name,
-                shard_id,
-                expert_id,
-            )
-            return
-        # logger.info(f"param.data.shape:{param.data.shape}")
-        # param.data.shape:torch.Size([2, 28672, 4096])
-        # param.data.shape:torch.Size([2, 4096, 14336])
-        if shard_id == "w2":
-            param.data[expert_id] = loaded_weight
-        elif shard_id == "w1":
-            param.data[expert_id][: self.intermediate_size, :] = loaded_weight
-        elif shard_id == "w3":
-            param.data[expert_id][self.intermediate_size :, :] = loaded_weight
-        else:
-            raise ValueError(f"Expected shard_id w1,w2 or w3 but got {shard_id}")
+            # Special case for fp8 scales.
+            if "scale" in weight_name:
+                self._load_fp8_scale(
+                    param.data,
+                    loaded_weight,
+                    weight_name,
+                    shard_id,
+                    local_expert_id,
+                )
+                return
+            # logger.info(f"param.data.shape:{param.data.shape}")
+            # param.data.shape:torch.Size([2, 28672, 4096])
+            # param.data.shape:torch.Size([2, 4096, 14336])
+            # logger.info(f"{id(param.data)}")
+            if shard_id == "w2":
+                param.data[local_expert_id] = loaded_weight
+            elif shard_id == "w1":
+                param.data[local_expert_id][: self.intermediate_size, :] = loaded_weight
+            elif shard_id == "w3":
+                param.data[local_expert_id][self.intermediate_size :, :] = loaded_weight
+            else:
+                raise ValueError(f"Expected shard_id w1,w2 or w3 but got {shard_id}")
         
+        # if not use_custom_expert_allocation:    
+        else:
+            if expert_id < self.start_expert_id or expert_id > self.end_expert_id:
+                return
+            
+            # record global expert_id
+            import os 
+            output_dir = os.environ.get("experts_gpu_output_dir")
+            os.makedirs(output_dir, exist_ok=True) 
+            csv_path = os.path.join(output_dir, f"rank_{self.tp_rank}_weights_loaded_before_converting_expert_id.csv")
+            with open(csv_path, "a") as f:
+                f.write(f"{weight_name},{shard_id},{expert_id}\n")
+                
+            expert_id = expert_id - self.start_expert_id
+
+            if shard_id not in ("w1", "w2", "w3"):
+                raise ValueError(
+                    f"shard_id must be ['w1','w2','w3'] but " f"got {shard_id}."
+                )
+
+            # Special case for fp8 scales.
+            if "scale" in weight_name:
+                self._load_fp8_scale(
+                    param.data,
+                    loaded_weight,
+                    weight_name,
+                    shard_id,
+                    expert_id,
+                )
+                return
+
+            if shard_id == "w2":
+                param.data[expert_id] = loaded_weight
+            elif shard_id == "w1":
+                param.data[expert_id][: self.intermediate_size, :] = loaded_weight
+            elif shard_id == "w3":
+                param.data[expert_id][self.intermediate_size :, :] = loaded_weight
+            else:
+                raise ValueError(f"Expected shard_id w1,w2 or w3 but got {shard_id}")
+
         
 
 

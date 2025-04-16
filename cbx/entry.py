@@ -29,8 +29,9 @@ def get_engine_instance():
         disable_cuda_graph=True,
     )
     os.environ["model_name"] = server_args.model_path.lower()
-    os.environ["NUM_EXPERTS"] = '8'
-    os.environ["experts_gpu_output_dir"] = "/home/bingxche/trace_dir/weights_loader/mixtral_6"
+    os.environ["CUSTOM_EXPERT_ALLOCATION"] = "True"
+    os.environ["NUM_EXPERTS"] = '12'
+    os.environ["experts_gpu_output_dir"] = "/home/bingxche/trace_dir/weights_loader/mixtral_12"
     return sgl.Engine(**dataclasses.asdict(server_args))
 
 def sample_requests_moe():

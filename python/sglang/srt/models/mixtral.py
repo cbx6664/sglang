@@ -16,6 +16,7 @@
 # https://github.com/vllm-project/vllm/blob/c7f2cf2b7f67bce5842fedfdba508440fe257375/vllm/model_executor/models/mixtral.py#L1
 """Inference-only Mixtral model."""
 
+import os
 from typing import Iterable, Optional, Tuple
 
 import torch
@@ -314,6 +315,39 @@ class MixtralForCausalLM(nn.Module):
             config.vocab_size, config.hidden_size, prefix=add_prefix("lm_head", prefix)
         )
         self.logits_processor = LogitsProcessor(config)
+        self.global_expert_allocation = [[7, 2, 6, 3, 2, 6, 0, 1, 4, 5, 5, 4],
+        [4, 1, 0, 7, 6, 2, 5, 6, 2, 3, 3, 0],
+        [7, 1, 5, 3, 0, 5, 6, 0, 2, 4, 4, 2],
+        [3, 2, 7, 6, 0, 1, 5, 0, 7, 4, 4, 2],
+        [2, 1, 4, 7, 1, 4, 0, 6, 5, 3, 3, 5],
+        [3, 7, 1, 0, 2, 5, 6, 4, 1, 6, 2, 5],
+        [7, 3, 5, 2, 6, 5, 1, 6, 0, 4, 4, 3],
+        [1, 7, 3, 4, 7, 0, 6, 2, 3, 5, 2, 0],
+        [1, 7, 5, 6, 4, 7, 0, 3, 2, 0, 3, 5],
+        [0, 3, 4, 6, 3, 4, 5, 2, 7, 1, 1, 7],
+        [0, 7, 6, 5, 3, 4, 2, 1, 7, 2, 1, 4],
+        [6, 0, 3, 7, 2, 4, 5, 2, 0, 1, 1, 4],
+        [2, 5, 3, 4, 0, 7, 6, 0, 3, 1, 1, 5],
+        [4, 2, 7, 3, 0, 7, 5, 0, 6, 1, 1, 2],
+        [6, 0, 1, 4, 5, 1, 4, 0, 3, 7, 2, 3],
+        [6, 2, 7, 3, 2, 1, 0, 4, 7, 0, 5, 1],
+        [4, 3, 2, 7, 5, 2, 6, 1, 0, 6, 5, 3],
+        [0, 7, 6, 1, 7, 2, 4, 5, 3, 4, 5, 2],
+        [2, 7, 4, 6, 7, 0, 3, 5, 4, 1, 1, 0],
+        [0, 4, 2, 1, 7, 2, 6, 7, 3, 5, 5, 3],
+        [3, 1, 1, 6, 0, 5, 6, 4, 2, 7, 0, 2],
+        [2, 0, 1, 5, 7, 6, 4, 7, 6, 3, 3, 0],
+        [3, 4, 7, 0, 1, 7, 6, 5, 2, 6, 1, 2],
+        [7, 6, 3, 5, 6, 0, 1, 2, 3, 1, 4, 0],
+        [4, 2, 7, 3, 2, 1, 5, 6, 7, 5, 0, 1],
+        [7, 5, 0, 2, 5, 0, 1, 6, 3, 4, 6, 3],
+        [7, 2, 5, 1, 2, 0, 3, 6, 5, 4, 6, 0],
+        [3, 4, 6, 5, 4, 0, 7, 1, 6, 2, 1, 0],
+        [5, 6, 7, 2, 4, 7, 1, 4, 6, 3, 3, 0],
+        [2, 5, 1, 7, 6, 1, 7, 5, 4, 0, 3, 4],
+        [2, 6, 1, 3, 6, 5, 4, 7, 0, 4, 7, 0],
+        [6, 2, 0, 1, 2, 0, 5, 3, 4, 7, 7, 4]]
+        self.use_custom_expert_allocation = os.environ.get("CUSTOM_EXPERT_ALLOCATION", "False") == "True"
 
     def forward(
         self,
@@ -338,19 +372,57 @@ class MixtralForCausalLM(nn.Module):
         # Params for weights, fp8 weight scales, fp8 activation scales
         # (param_name, weight_name, expert_id, shard_id)
         MoEImpl = EPMoE if global_server_args_dict["enable_ep_moe"] else FusedMoE
+        
         expert_params_mapping = MoEImpl.make_expert_params_mapping(
             ckpt_gate_proj_name="w1",
             ckpt_down_proj_name="w2",
             ckpt_up_proj_name="w3",
             num_experts=self.config.num_local_experts,
         )
-
+        if self.use_custom_expert_allocation:
+            expert_params_mapping_layer_wise = MoEImpl.make_expert_params_mapping_from_custome_expert_id(
+                ckpt_gate_proj_name="w1",
+                ckpt_down_proj_name="w2",
+                ckpt_up_proj_name="w3",
+                custom_expert_allocation=self.global_expert_allocation,
+            )
+        
+        def extract_layer_id(weight_name: str) -> int | None:
+            """
+            extract layer_id from name like 'model.layers.31.block_sparse_moe.experts.7.w3.weight'
+            if can not find layer_id, return None
+            """
+            parts = weight_name.split(".")  # ["model", "layers", "31", "block_sparse_moe", "experts", "7", "w3", "weight"]
+            
+            if len(parts) < 3:
+                return None
+            
+            # parts[0] == 'model', parts[1] == 'layers', parts[2] == '31'
+            if parts[0] == "model" and parts[1] == "layers":
+                try:
+                    layer_id = int(parts[2])  
+                    return layer_id
+                except ValueError:
+                    return None
+            else:
+                return None
+                
+        # record number of loops  
+        num_weights_loop, num_stacked_params_mapping_loop, num_expert_params_mapping_loop = 0,0,0
+        
         params_dict = dict(self.named_parameters())
         for name, loaded_weight in weights:
+            num_weights_loop += 1
+            
+            # extract layer_id from name
+            layer_id = extract_layer_id(name)
+            expert_params_mapping = expert_params_mapping_layer_wise[layer_id] if self.use_custom_expert_allocation and layer_id is not None else expert_params_mapping
+
             if "rotary_emb.inv_freq" in name:
                 continue
 
             for param_name, weight_name, shard_id in stacked_params_mapping:
+                num_stacked_params_mapping_loop += 1
                 if weight_name not in name:
                     continue
                 name = name.replace(weight_name, param_name)
@@ -364,8 +436,10 @@ class MixtralForCausalLM(nn.Module):
                 weight_loader = param.weight_loader
                 weight_loader(param, loaded_weight, shard_id)
                 break
+               
             else:
                 for mapping in expert_params_mapping:
+                    num_expert_params_mapping_loop += 1
                     param_name, weight_name, expert_id, shard_id = mapping
                     if weight_name not in name:
                         continue
@@ -383,6 +457,8 @@ class MixtralForCausalLM(nn.Module):
                         name,
                         shard_id=shard_id,
                         expert_id=expert_id,
+                        global_expert_gpu_allocation=self.global_expert_allocation[layer_id],
+                        use_custom_expert_allocation=self.use_custom_expert_allocation,
                     )
                     break
                 else:
