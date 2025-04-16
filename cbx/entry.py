@@ -10,6 +10,7 @@ from sglang.srt.sampling.sampling_params import SamplingParams
 from pathlib import Path
 import os
 import logging
+import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,9 @@ def get_engine_instance():
     )
     os.environ["model_name"] = server_args.model_path.lower()
     os.environ["CUSTOM_EXPERT_ALLOCATION"] = "True"
-    os.environ["NUM_EXPERTS"] = '12'
-    os.environ["experts_gpu_output_dir"] = "/home/bingxche/trace_dir/weights_loader/mixtral_12"
+    os.environ["NUM_EXPERTS"] = '8'
+    # os.environ["EXPERT_ALLOCATION"] = "[[5, 1, 2, 0, 4, 3, 6, 7], [3, 1, 6, 5, 2, 7, 0, 4],[4, 1, 0, 6, 2, 3, 5, 7], [4, 1, 0, 5, 2, 6, 7, 3],[3, 6, 1, 0, 5, 7, 4, 2], [6, 7, 2, 4, 5, 0, 1, 3],[4, 0, 6, 1, 3, 2, 5, 7], [2, 5, 7, 6, 0, 4, 3, 1],[0, 2, 3, 4, 7, 6, 5, 1], [1, 2, 3, 5, 7, 6, 4, 0],[2, 6, 1, 3, 7, 5, 4, 0], [1, 3, 2, 5, 0, 7, 4, 6],[1, 7, 0, 6, 5, 4, 3, 2], [1, 6, 0, 5, 2, 3, 7, 4],[4, 5, 0, 2, 3, 7, 1, 6], [0, 5, 2, 4, 1, 3, 7, 6],[6, 0, 5, 1, 3, 7, 2, 4], [4, 6, 5, 3, 7, 1, 2, 0],[1, 5, 7, 3, 0, 6, 4, 2], [5, 4, 7, 6, 3, 1, 2, 0],[6, 5, 0, 4, 1, 7, 2, 3], [3, 1, 7, 4, 0, 5, 6, 2],[6, 4, 1, 5, 2, 0, 7, 3], [1, 4, 6, 2, 0, 5, 3, 7],[5, 0, 2, 6, 1, 3, 7, 4], [6, 4, 5, 1, 3, 2, 0, 7],[6, 4, 2, 3, 0, 1, 5, 7], [1, 2, 4, 7, 0, 5, 6, 3],[3, 0, 4, 1, 6, 2, 7, 5], [7, 6, 5, 3, 4, 0, 1, 2],[4, 1, 7, 5, 6, 3, 0, 2], [7, 3, 2, 5, 4, 1, 0, 6]]"
+    os.environ["experts_gpu_output_dir"] = "/home/bingxche/trace_dir/weights_loader/mixtral_15_custom_no_replicate"
     return sgl.Engine(**dataclasses.asdict(server_args))
 
 def sample_requests_moe():
@@ -97,20 +99,47 @@ def run_sglang(prompts, sampling_params):
     if isinstance(outputs, list):
         # Batch generation case
         for output in outputs:
-            output_prompts.append(output.get("output_ids", output.get("token_ids", [])))
+            output_prompts.append(output.get("text", output.get("meta_info", [])))
     else:
         # Single generation case
-        output_prompts.append(outputs.get("output_ids", outputs.get("token_ids", [])))
+        output_prompts.append(outputs.get("text", outputs.get("meta_info", [])))
     
-    print("time:", end - start)
+    logger.info("time:", end - start)
     out = [len(a) for a in output_prompts]
-    print("output prompt lens:", sum(out) / len(out))
-    print("input and output prompts:", output_prompts[0])
+    logger.info("output prompt lens:", sum(out) / len(out))
+    logger.info("input and output prompts:", output_prompts[0])
+    
+    save_outputs_to_json(outputs)
     
     # Clean up
     engine.shutdown()
     
     return (prompts, output_prompts, end - start)
+
+def save_outputs_to_json(outputs):
+    result = []
+    for i, output in enumerate(outputs):
+        item = {}
+
+        # text
+        item["text"] = output.get("text", "")
+
+        # meta info
+        meta = output.get("meta_info", {})
+        item["id"] = meta.get("id", f"unknown_{i}")
+        item["prompt_tokens"] = meta.get("prompt_tokens", None)
+        item["completion_tokens"] = meta.get("completion_tokens", None)
+        item["cached_tokens"] = meta.get("cached_tokens", None)
+        item["e2e_latency"] = meta.get("e2e_latency", None)
+
+        result.append(item)
+
+    path = os.path.join(os.environ.get("experts_gpu_output_dir"), "output.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    logger.info(f"Saved {len(result)} entries to {path}")
+
 
 def main(enable_profiling: bool = False):
     # whether print token distribution
@@ -135,7 +164,7 @@ def main(enable_profiling: bool = False):
         assert len(prompts) == len(output_prompts), "prompt input and output lengths are different"
         total_num_tokens = sum(len(prompts[idx][0]) + len(output_prompts[idx]) for idx in range(0, len(prompts)))
         total_output_tokens = sum(len(output_prompt) for output_prompt in output_prompts)
-        print(f"Throughput: {len(requests) / elapsed_time:.2f} requests/s, "
+        logger.info(f"Throughput: {len(requests) / elapsed_time:.2f} requests/s, "
               f"{total_num_tokens / elapsed_time:.2f} total tokens/s, "
               f"{total_output_tokens / elapsed_time:.2f} output tokens/s")
         
