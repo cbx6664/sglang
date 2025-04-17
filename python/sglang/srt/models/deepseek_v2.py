@@ -1258,6 +1258,7 @@ class DeepseekV2DecoderLayer(nn.Module):
 
 class DeepseekV2Model(nn.Module):
     fall_back_to_pt_during_load = False
+    layer_id_print = None
 
     def __init__(
         self,
@@ -1305,6 +1306,7 @@ class DeepseekV2Model(nn.Module):
         residual = None
         for i in range(len(self.layers)):
             expert_distribution_recorder.set_current_layer(i)
+            DeepseekV2Model.layer_id_print = i
             layer = self.layers[i]
             hidden_states, residual = layer(
                 positions, hidden_states, forward_batch, residual

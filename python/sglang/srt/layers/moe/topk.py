@@ -21,6 +21,7 @@ import torch.nn.functional as F
 from sglang.srt.managers.expert_distribution import ExpertDistributionRecorder
 from sglang.srt.managers.schedule_batch import global_server_args_dict
 from sglang.srt.utils import get_compiler_backend, is_cuda, is_hip
+from sglang.srt.distributed import get_tensor_model_parallel_rank
 
 _is_cuda = is_cuda()
 _is_hip = is_hip()
@@ -300,6 +301,35 @@ def select_experts(
             topk=top_k,
             renormalize=renormalize,
         )
+        
+    if os.environ.get("LOG_ALL") == "True":
+        rank = get_tensor_model_parallel_rank()
+        if get_tensor_model_parallel_rank() == 0:
+            if "mixtral" in os.environ.get("MODEL_PATH").lower():
+                flatten_topk_ids = topk_ids.view(-1)
+                output_dir = os.path.join(os.environ.get("LOG_DIR"), f"moe_token_dist")
+                os.makedirs(output_dir, exist_ok=True) 
+                from sglang.srt.models.mixtral import MixtralModel
+                layer_id_mixtral = MixtralModel.layer_id_print
+                # Mixtral 8x7B has 8 experts in each layer, totally 32 layers, all are MoE layers
+                token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=8)
+                csv_path = os.path.join(output_dir, f"rank_{rank}_layer_{layer_id_mixtral}_token_distribution.csv")
+                with open(csv_path, "a") as f:
+                    token_dist = token_dist_per_expert.cpu().tolist()
+                    f.write(",".join(map(str, token_dist)) + "\n")
+                
+            elif "deepseek-v3" in os.environ.get("MODEL_PATH").lower():
+                flatten_topk_ids = topk_ids.view(-1)
+                output_dir = os.path.join(os.environ.get("LOG_DIR"), f"moe_token_dist")
+                os.makedirs(output_dir, exist_ok=True) 
+                from sglang.srt.models.deepseek_v2 import DeepseekV2Model
+                layer_id_deepseek = DeepseekV2Model.layer_id_print  
+                # DeepSeek-V3 has 256 shared experts in each layer, totally 61 layers with 58 MoE layers(layer4 - layer61)
+                token_dist_per_expert = torch.bincount(flatten_topk_ids, minlength=256)     
+                csv_path = os.path.join(output_dir, f"rank_{rank}layer_{layer_id_mixtral}_token_distribution.csv")
+                with open(csv_path, "a") as f:
+                    token_dist = token_dist_per_expert.cpu().tolist()
+                    f.write(",".join(map(str, token_dist)) + "\n")
 
     expert_distribution_recorder.record_new_token(topk_ids)
 

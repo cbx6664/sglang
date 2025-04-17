@@ -29,11 +29,13 @@ def get_engine_instance():
         trust_remote_code=True,
         disable_cuda_graph=True,
     )
-    os.environ["model_name"] = server_args.model_path.lower()
-    os.environ["CUSTOM_EXPERT_ALLOCATION"] = "True"
+    
+    os.environ["CUSTOM_EXPERT_ALLOCATION"] = "False"
+    os.environ["MODEL_PATH"] = f"{server_args.model_path}"
+    os.environ["LOG_ALL"] = "True"
+    os.environ["LOG_DIR"] = "/home/bingxche/log/mixtral8x7b_ep4_vanilla_expert_allocation"
     os.environ["NUM_EXPERTS"] = '8'
     # os.environ["EXPERT_ALLOCATION"] = "[[5, 1, 2, 0, 4, 3, 6, 7], [3, 1, 6, 5, 2, 7, 0, 4],[4, 1, 0, 6, 2, 3, 5, 7], [4, 1, 0, 5, 2, 6, 7, 3],[3, 6, 1, 0, 5, 7, 4, 2], [6, 7, 2, 4, 5, 0, 1, 3],[4, 0, 6, 1, 3, 2, 5, 7], [2, 5, 7, 6, 0, 4, 3, 1],[0, 2, 3, 4, 7, 6, 5, 1], [1, 2, 3, 5, 7, 6, 4, 0],[2, 6, 1, 3, 7, 5, 4, 0], [1, 3, 2, 5, 0, 7, 4, 6],[1, 7, 0, 6, 5, 4, 3, 2], [1, 6, 0, 5, 2, 3, 7, 4],[4, 5, 0, 2, 3, 7, 1, 6], [0, 5, 2, 4, 1, 3, 7, 6],[6, 0, 5, 1, 3, 7, 2, 4], [4, 6, 5, 3, 7, 1, 2, 0],[1, 5, 7, 3, 0, 6, 4, 2], [5, 4, 7, 6, 3, 1, 2, 0],[6, 5, 0, 4, 1, 7, 2, 3], [3, 1, 7, 4, 0, 5, 6, 2],[6, 4, 1, 5, 2, 0, 7, 3], [1, 4, 6, 2, 0, 5, 3, 7],[5, 0, 2, 6, 1, 3, 7, 4], [6, 4, 5, 1, 3, 2, 0, 7],[6, 4, 2, 3, 0, 1, 5, 7], [1, 2, 4, 7, 0, 5, 6, 3],[3, 0, 4, 1, 6, 2, 7, 5], [7, 6, 5, 3, 4, 0, 1, 2],[4, 1, 7, 5, 6, 3, 0, 2], [7, 3, 2, 5, 4, 1, 0, 6]]"
-    os.environ["experts_gpu_output_dir"] = "/home/bingxche/trace_dir/weights_loader/mixtral_15_custom_no_replicate"
     return sgl.Engine(**dataclasses.asdict(server_args))
 
 def sample_requests_moe():
@@ -53,8 +55,7 @@ def sample_requests_moe():
 def profile_run_sglang(prompts, sampling_params):
     engine = get_engine_instance()
     input_ids = [prompt[0] for prompt in prompts]
-    profile_dir = "/home/bingxche/trace_dir"
-    # profile_dir = "/work1/amd/bingxche/trace_dir"
+    profile_dir = os.path.join(os.environ.get("LOG_DIR"), "trace")
     Path(profile_dir).mkdir(parents=True, exist_ok=True)
     os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
     with torch.profiler.profile(
@@ -64,7 +65,6 @@ def profile_run_sglang(prompts, sampling_params):
         on_trace_ready=torch.profiler.tensorboard_trace_handler(str(profile_dir))
     ) as p:
         start = time.perf_counter()
-        engine.generate(input_ids=input_ids, sampling_params=sampling_params)
         end = time.perf_counter()
     
     # Try both table formats since different GPU backends use different fields
@@ -78,6 +78,9 @@ def profile_run_sglang(prompts, sampling_params):
     
     print(f"\nTotal execution time: {end - start:.4f} seconds")
     
+    outputs = engine.generate(input_ids=input_ids, sampling_params=sampling_params)
+    save_outputs_to_json(outputs)
+    
     engine.shutdown()
 
 def run_sglang(prompts, sampling_params):
@@ -87,10 +90,7 @@ def run_sglang(prompts, sampling_params):
     input_ids = [prompt[0] for prompt in prompts]
     
     # Generate responses in batch
-    outputs = engine.generate(
-        input_ids=input_ids,
-        sampling_params=sampling_params
-    )
+    outputs = engine.generate(input_ids=input_ids, sampling_params=sampling_params)
     
     end = time.perf_counter()
     
@@ -104,10 +104,10 @@ def run_sglang(prompts, sampling_params):
         # Single generation case
         output_prompts.append(outputs.get("text", outputs.get("meta_info", [])))
     
-    logger.info("time:", end - start)
+    logger.info(f"time: {end - start}")
     out = [len(a) for a in output_prompts]
-    logger.info("output prompt lens:", sum(out) / len(out))
-    logger.info("input and output prompts:", output_prompts[0])
+    logger.info(f"output prompt lens: {sum(out) / len(out)}")
+    logger.info(f"input and output prompts: {output_prompts[0]}")
     
     save_outputs_to_json(outputs)
     
@@ -134,7 +134,7 @@ def save_outputs_to_json(outputs):
 
         result.append(item)
 
-    path = os.path.join(os.environ.get("experts_gpu_output_dir"), "output.json")
+    path = os.path.join(os.environ.get("LOG_DIR"), "model_output.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
 
@@ -142,9 +142,6 @@ def save_outputs_to_json(outputs):
 
 
 def main(enable_profiling: bool = False):
-    # whether print token distribution
-    os.environ["print_expert_token_dist"] = "0"
-    os.environ["use_eplb_to_calculate_experts_gpu_placement"] = "0"
     requests = sample_requests_moe()
     prompts = requests
     

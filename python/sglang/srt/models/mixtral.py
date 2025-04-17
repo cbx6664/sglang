@@ -248,6 +248,9 @@ class MixtralDecoderLayer(nn.Module):
 
 
 class MixtralModel(nn.Module):
+    
+    layer_id_print = None
+    
     def __init__(
         self,
         config: MixtralConfig,
@@ -289,6 +292,7 @@ class MixtralModel(nn.Module):
             hidden_states = input_embeds
         residual = None
         for i in range(len(self.layers)):
+            MixtralModel.layer_id_print = i
             layer = self.layers[i]
             hidden_states, residual = layer(
                 positions, hidden_states, forward_batch, residual
