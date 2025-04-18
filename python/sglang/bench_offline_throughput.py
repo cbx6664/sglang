@@ -410,7 +410,7 @@ if __name__ == "__main__":
     ServerArgs.add_cli_args(parser)
     BenchArgs.add_cli_args(parser)
     args = parser.parse_args()
-    server_args = ServerArgs.from_cli_args(args)
+    # server_args = ServerArgs.from_cli_args(args)
     bench_args = BenchArgs.from_cli_args(args)
     
     # Override server arguments
