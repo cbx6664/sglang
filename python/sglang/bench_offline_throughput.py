@@ -412,6 +412,26 @@ if __name__ == "__main__":
     args = parser.parse_args()
     server_args = ServerArgs.from_cli_args(args)
     bench_args = BenchArgs.from_cli_args(args)
+    
+    # Override server arguments
+    server_args = ServerArgs(
+        model_path="/home/bingxche/Mixtral-8x7B-Instruct-v0.1",
+        tp_size=4,
+        ep_size=4,
+        enable_ep_moe=True,
+        trust_remote_code=True,
+        disable_cuda_graph=True,
+    )
+    
+    # Set environment variables
+    
+    os.environ["CUSTOM_EXPERT_ALLOCATION"] = "False"
+    os.environ["MODEL_PATH"] = f"{server_args.model_path}"
+    os.environ["LOG_ALL"] = "Fasle"
+    os.environ["LOG_DIR"] = "/home/bingxche/log/mixtral8x7b_ep4_vanilla_expert_allocation"
+    os.environ["NUM_EXPERTS"] = "8"
+    profile_dir = os.path.join(os.environ.get("LOG_DIR"), "trace")
+    os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
 
     logging.basicConfig(
         level=getattr(logging, server_args.log_level.upper()),

@@ -51,22 +51,21 @@ def sample_requests_moe():
     sorted_prompts = sorted(prompts, key=lambda x: x[1], reverse=True)
     return sorted_prompts
 
-# todo Not Supported Yet
+# TODO Not Supported Yet
 def profile_run_sglang(prompts, sampling_params):
     engine = get_engine_instance()
     input_ids = [prompt[0] for prompt in prompts]
     profile_dir = os.path.join(os.environ.get("LOG_DIR"), "trace")
-    Path(profile_dir).mkdir(parents=True, exist_ok=True)
     os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
-    with torch.profiler.profile(
-        activities=[
-            torch.profiler.ProfilerActivity.CPU,
-            torch.profiler.ProfilerActivity.CUDA],
-        on_trace_ready=torch.profiler.tensorboard_trace_handler(str(profile_dir))
-    ) as p:
-        start = time.perf_counter()
-        end = time.perf_counter()
+    os.makedirs(os.environ["SGLANG_TORCH_PROFILER_DIR"], exist_ok=True)
     
+    with torch.profiler.profile( 
+                                activities=[
+                        torch.profiler.ProfilerActivity.CPU,
+                        torch.profiler.ProfilerActivity.CUDA], on_trace_ready=torch.profiler.tensorboard_trace_handler(str(profile_dir))) as p:
+                        start = time.perf_counter()
+                        outputs = engine.generate(input_ids=input_ids, sampling_params=sampling_params)
+                        end = time.perf_counter()
     # Try both table formats since different GPU backends use different fields
     print("==== CPU PROFILE ====")
     print(p.key_averages().table(sort_by="self_cpu_time_total", row_limit=20))
@@ -78,7 +77,6 @@ def profile_run_sglang(prompts, sampling_params):
     
     print(f"\nTotal execution time: {end - start:.4f} seconds")
     
-    outputs = engine.generate(input_ids=input_ids, sampling_params=sampling_params)
     save_outputs_to_json(outputs)
     
     engine.shutdown()
