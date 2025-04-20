@@ -427,11 +427,13 @@ if __name__ == "__main__":
     
     os.environ["CUSTOM_EXPERT_ALLOCATION"] = "False"
     os.environ["MODEL_PATH"] = f"{server_args.model_path}"
-    os.environ["LOG_ALL"] = "Fasle"
+    os.environ["LOG_ALL"] = "True"
     os.environ["LOG_DIR"] = "/home/bingxche/log/mixtral8x7b_ep4_vanilla_expert_allocation"
     os.environ["NUM_EXPERTS"] = "8"
     profile_dir = os.path.join(os.environ.get("LOG_DIR"), "trace")
     os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
+    
+# python -m sglang.bench_offline_throughput --model-path /home/bingxche/Mixtral-8x7B-Instruct-v0.1 --num-prompts 3 --profile
 
     logging.basicConfig(
         level=getattr(logging, server_args.log_level.upper()),
