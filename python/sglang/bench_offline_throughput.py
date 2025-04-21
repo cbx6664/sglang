@@ -8,6 +8,9 @@ python -m sglang.bench_offline_throughput --model-path meta-llama/Meta-Llama-3.1
 
 ## Random dataset with default args
 python -m sglang.bench_offline_throughput --model-path meta-llama/Meta-Llama-3.1-8B-Instruct --dataset-name random --random-input 1024 --random-output 1024
+
+## profile
+python -m sglang.bench_offline_throughput --model-path /home/bingxche/Mixtral-8x7B-Instruct-v0.1 --num-prompts 3 --profile --dataset-name sharegpt
 """
 
 import argparse
@@ -30,6 +33,10 @@ from sglang.bench_serving import (
 from sglang.lang.backend.runtime_endpoint import Runtime
 from sglang.srt.entrypoints.engine import Engine
 from sglang.srt.server_args import ServerArgs
+import logging
+import json
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -191,6 +198,31 @@ class BenchArgs:
         return cls(**{attr: getattr(args, attr) for attr in attrs})
 
 
+def save_outputs_to_json(outputs):
+    result = []
+    for i, output in enumerate(outputs):
+        item = {}
+
+        # text
+        item["text"] = output.get("text", "")
+
+        # meta info
+        meta = output.get("meta_info", {})
+        item["id"] = meta.get("id", f"unknown_{i}")
+        item["prompt_tokens"] = meta.get("prompt_tokens", None)
+        item["completion_tokens"] = meta.get("completion_tokens", None)
+        item["cached_tokens"] = meta.get("cached_tokens", None)
+        item["e2e_latency"] = meta.get("e2e_latency", None)
+
+        result.append(item)
+
+    path = os.path.join(os.environ.get("LOG_DIR"), "model_output.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    logger.info(f"Saved {len(result)} entries to {path}")
+
+
 def throughput_test_once(
     backend_name: str,
     backend,
@@ -209,6 +241,9 @@ def throughput_test_once(
         "input_throughput": -1,
         "output_throughput": -1,
         "total_throughput": -1,
+        "prompts": [],
+        "sampling_params": [],
+        "model_output": [],
     }
 
     prompt = [r[0] for r in reqs]
@@ -260,6 +295,9 @@ def throughput_test_once(
         + measurement_results["total_output_tokens"]
     ) / latency
     measurement_results["last_gen_throughput"] = server_info["last_gen_throughput"]
+    measurement_results["prompts"] = prompt
+    measurement_results["sampling_params"] = sampling_params
+    measurement_results["model_output"] = gen_out
 
     return measurement_results
 
@@ -359,6 +397,9 @@ def throughput_test(
         extra_request_body=extra_request_body,
         profile=bench_args.profile,
     )
+    
+    save_outputs_to_json(result["model_output"])
+    
     backend.shutdown()
 
     if bench_args.result_filename:
@@ -406,12 +447,12 @@ def throughput_test(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    ServerArgs.add_cli_args(parser)
-    BenchArgs.add_cli_args(parser)
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    # ServerArgs.add_cli_args(parser)
+    # BenchArgs.add_cli_args(parser)
+    # args = parser.parse_args()
     # server_args = ServerArgs.from_cli_args(args)
-    bench_args = BenchArgs.from_cli_args(args)
+    # bench_args = BenchArgs.from_cli_args(args)
     
     # Override server arguments
     server_args = ServerArgs(
@@ -424,16 +465,22 @@ if __name__ == "__main__":
     )
     
     # Set environment variables
-    
+    # Assign custom expert allocation in model.py respectively
     os.environ["CUSTOM_EXPERT_ALLOCATION"] = "False"
     os.environ["MODEL_PATH"] = f"{server_args.model_path}"
     os.environ["LOG_ALL"] = "True"
-    os.environ["LOG_DIR"] = "/home/bingxche/log/mixtral8x7b_ep4_vanilla_expert_allocation"
+    os.environ["LOG_DIR"] = "/home/bingxche/log/mixtral8x7b_ep4_sharegpt_5_prompts_vanilla"
     os.environ["NUM_EXPERTS"] = "8"
     profile_dir = os.path.join(os.environ.get("LOG_DIR"), "trace")
     os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
     
-# python -m sglang.bench_offline_throughput --model-path /home/bingxche/Mixtral-8x7B-Instruct-v0.1 --num-prompts 3 --profile
+    bench_args = BenchArgs(                        
+        result_filename=f"{os.path.join(os.environ.get("LOG_DIR"), "results.json")}",                        
+        dataset_name="sharegpt",                   
+        num_prompts=5,
+        profile=True,
+        skip_warmup=True,
+    )
 
     logging.basicConfig(
         level=getattr(logging, server_args.log_level.upper()),

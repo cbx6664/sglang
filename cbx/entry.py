@@ -4,9 +4,9 @@ import dataclasses
 import pandas as pd
 import torch
 from typing import List, Tuple, Dict
-import sglang as sgl
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.sampling.sampling_params import SamplingParams
+from sglang.srt.entrypoints.engine import Engine
 from pathlib import Path
 import os
 import logging
@@ -33,10 +33,10 @@ def get_engine_instance():
     os.environ["CUSTOM_EXPERT_ALLOCATION"] = "False"
     os.environ["MODEL_PATH"] = f"{server_args.model_path}"
     os.environ["LOG_ALL"] = "True"
-    os.environ["LOG_DIR"] = "/home/bingxche/log/mixtral8x7b_ep4_vanilla_expert_allocation"
+    os.environ["LOG_DIR"] = "/home/bingxche/log/mixtral8x7b_ep4_mixtral_dataset_10_prompts_vanilla"
     os.environ["NUM_EXPERTS"] = '8'
     # os.environ["EXPERT_ALLOCATION"] = "[[5, 1, 2, 0, 4, 3, 6, 7], [3, 1, 6, 5, 2, 7, 0, 4],[4, 1, 0, 6, 2, 3, 5, 7], [4, 1, 0, 5, 2, 6, 7, 3],[3, 6, 1, 0, 5, 7, 4, 2], [6, 7, 2, 4, 5, 0, 1, 3],[4, 0, 6, 1, 3, 2, 5, 7], [2, 5, 7, 6, 0, 4, 3, 1],[0, 2, 3, 4, 7, 6, 5, 1], [1, 2, 3, 5, 7, 6, 4, 0],[2, 6, 1, 3, 7, 5, 4, 0], [1, 3, 2, 5, 0, 7, 4, 6],[1, 7, 0, 6, 5, 4, 3, 2], [1, 6, 0, 5, 2, 3, 7, 4],[4, 5, 0, 2, 3, 7, 1, 6], [0, 5, 2, 4, 1, 3, 7, 6],[6, 0, 5, 1, 3, 7, 2, 4], [4, 6, 5, 3, 7, 1, 2, 0],[1, 5, 7, 3, 0, 6, 4, 2], [5, 4, 7, 6, 3, 1, 2, 0],[6, 5, 0, 4, 1, 7, 2, 3], [3, 1, 7, 4, 0, 5, 6, 2],[6, 4, 1, 5, 2, 0, 7, 3], [1, 4, 6, 2, 0, 5, 3, 7],[5, 0, 2, 6, 1, 3, 7, 4], [6, 4, 5, 1, 3, 2, 0, 7],[6, 4, 2, 3, 0, 1, 5, 7], [1, 2, 4, 7, 0, 5, 6, 3],[3, 0, 4, 1, 6, 2, 7, 5], [7, 6, 5, 3, 4, 0, 1, 2],[4, 1, 7, 5, 6, 3, 0, 2], [7, 3, 2, 5, 4, 1, 0, 6]]"
-    return sgl.Engine(**dataclasses.asdict(server_args))
+    return Engine(**dataclasses.asdict(server_args))
 
 def sample_requests_moe():
     processed_data = pd.read_pickle("/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl").head(100)
@@ -58,27 +58,16 @@ def profile_run_sglang(prompts, sampling_params):
     profile_dir = os.path.join(os.environ.get("LOG_DIR"), "trace")
     os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
     os.makedirs(os.environ["SGLANG_TORCH_PROFILER_DIR"], exist_ok=True)
-    
-    with torch.profiler.profile( 
-                                activities=[
-                        torch.profiler.ProfilerActivity.CPU,
-                        torch.profiler.ProfilerActivity.CUDA], on_trace_ready=torch.profiler.tensorboard_trace_handler(str(profile_dir))) as p:
-                        start = time.perf_counter()
-                        outputs = engine.generate(input_ids=input_ids, sampling_params=sampling_params)
-                        end = time.perf_counter()
-    # Try both table formats since different GPU backends use different fields
-    print("==== CPU PROFILE ====")
-    print(p.key_averages().table(sort_by="self_cpu_time_total", row_limit=20))
-    print("\n==== GPU PROFILE (CUDA style) ====")
-    try:
-        print(p.key_averages().table(sort_by="self_cuda_time_total", row_limit=20))
-    except:
-        print("Could not sort by self_cuda_time_total")
-    
-    print(f"\nTotal execution time: {end - start:.4f} seconds")
+
+    engine.start_profile()
+    start = time.perf_counter()
+    outputs = engine.generate(input_ids=input_ids, sampling_params=sampling_params)
+    end = time.perf_counter()
+    engine.end_profile()
     
     save_outputs_to_json(outputs)
     
+    logger.info(f"Profiling time: {end - start}")
     engine.shutdown()
 
 def run_sglang(prompts, sampling_params):
@@ -164,4 +153,4 @@ def main(enable_profiling: bool = False):
               f"{total_output_tokens / elapsed_time:.2f} output tokens/s")
         
 if __name__ == "__main__":
-    main(False)  # Set to True to enable profiling
+    main(True)  # Set to True to enable profiling
