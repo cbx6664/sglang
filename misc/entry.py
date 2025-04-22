@@ -24,7 +24,7 @@ CONFIG = {
     "ep_size": 4,
     "enable_ep_moe": True,
     "data_path": "/home/bingxche/data/09292024_mixtral_15k_mintoken2_v1.pkl",
-    "num_samples": 15,
+    "num_samples": 15, # number of rows of dataset to use for inference
     "trust_remote_code": True,
     "disable_cuda_graph": True,
     
@@ -32,9 +32,10 @@ CONFIG = {
 
 ENV = {
     "custom_expert_allocation": "True",
-    "num_experts": "8",
-    "log_all": "True",
-    "log_dir": "/home/bingxche/log/mixtral8x7b_ep4_mixtral_dataset_15_prompts_8_custom_experts",
+    "num_experts": "8", # this should match the number of physical experts if we use custom expert allocation
+    "log_all": "True", # whether to log expert allocation, token distribution info...
+    "log_dir": "/home/bingxche/log/mixtral8x7b_ep4_mixtral_dataset_15_prompts_8_custom_experts", # directory of log files
+    # file path of custom_expert_allocation.csv
     "expert_allocation_file_path": "/home/bingxche/log/mixtral8x7b_ep4_mixtral_dataset_15_prompts_vanilla/moe_token_dist_eplb_8replicas_1groups_1nodes_4gpus/phy2log_8replicas_1groups_1nodes_4gpus.json",
 }
 

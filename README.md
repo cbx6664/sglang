@@ -1,75 +1,88 @@
-<div align="center" id="sglangtop">
-<img src="https://raw.githubusercontent.com/sgl-project/sglang/main/assets/logo.png" alt="logo" width="400" margin="10px"></img>
+# SGLang Internal
 
-[![PyPI](https://img.shields.io/pypi/v/sglang)](https://pypi.org/project/sglang)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/sglang)
-[![license](https://img.shields.io/github/license/sgl-project/sglang.svg)](https://github.com/sgl-project/sglang/tree/main/LICENSE)
-[![issue resolution](https://img.shields.io/github/issues-closed-raw/sgl-project/sglang)](https://github.com/sgl-project/sglang/issues)
-[![open issues](https://img.shields.io/github/issues-raw/sgl-project/sglang)](https://github.com/sgl-project/sglang/issues)
-[![](https://img.shields.io/badge/Gurubase-(experimental)-006BFF)](https://gurubase.io/g/sglang)
+## Background
 
-</div>
+This repo is based on SGLang v0.4.5 https://github.com/sgl-project/sglang/tree/v0.4.5
 
---------------------------------------------------------------------------------
 
-| [**Blog**](https://lmsys.org/blog/2024-07-25-sglang-llama3/)
-| [**Documentation**](https://docs.sglang.ai/)
-| [**Join Slack**](https://slack.sglang.ai/)
-| [**Join Bi-Weekly Development Meeting**](https://meeting.sglang.ai/)
-| [**Roadmap**](https://github.com/sgl-project/sglang/issues/4042)
-| [**Slides**](https://github.com/sgl-project/sgl-learning-materials?tab=readme-ov-file#slides) |
 
-## News
-- [2025/03] Supercharge DeepSeek-R1 Inference on AMD Instinct MI300X ([AMD blog](https://rocm.blogs.amd.com/artificial-intelligence/DeepSeekR1-Part2/README.html))
-- [2025/03] SGLang Joins PyTorch Ecosystem: Efficient LLM Serving Engine ([PyTorch blog](https://pytorch.org/blog/sglang-joins-pytorch/))
-- [2025/02] Unlock DeepSeek-R1 Inference Performance on AMD Instinct™ MI300X GPU ([AMD blog](https://rocm.blogs.amd.com/artificial-intelligence/DeepSeekR1_Perf/README.html))
-- [2025/01] 🔥 SGLang provides day one support for DeepSeek V3/R1 models on NVIDIA and AMD GPUs with DeepSeek-specific optimizations. ([instructions](https://github.com/sgl-project/sglang/tree/main/benchmark/deepseek_v3), [AMD blog](https://www.amd.com/en/developer/resources/technical-articles/amd-instinct-gpus-power-deepseek-v3-revolutionizing-ai-development-with-sglang.html), [10+ other companies](https://x.com/lmsysorg/status/1887262321636221412))
-- [2024/12] 🔥 v0.4 Release: Zero-Overhead Batch Scheduler, Cache-Aware Load Balancer, Faster Structured Outputs ([blog](https://lmsys.org/blog/2024-12-04-sglang-v0-4/)).
-- [2024/09] v0.3 Release: 7x Faster DeepSeek MLA, 1.5x Faster torch.compile, Multi-Image/Video LLaVA-OneVision ([blog](https://lmsys.org/blog/2024-09-04-sglang-v0-3/)).
-- [2024/07] v0.2 Release: Faster Llama3 Serving with SGLang Runtime (vs. TensorRT-LLM, vLLM) ([blog](https://lmsys.org/blog/2024-07-25-sglang-llama3/)).
+## Features
 
-<details>
-<summary>More</summary>
+- [x] Records token distribution on experts of Mixtral 8x7b, and DeepSeek-v3, and outputs as csv files
+- [x]  Records experts-gpu allocation in each layer on Mixtral 8x7b, and outputs to csv files
+- [x]  Supports custom experts allocation on Mixtral 8x7b
+- [x] Supports profiling run
 
-- [2024/10] The First SGLang Online Meetup ([slides](https://github.com/sgl-project/sgl-learning-materials?tab=readme-ov-file#the-first-sglang-online-meetup)).
-- [2024/02] SGLang enables **3x faster JSON decoding** with compressed finite state machine ([blog](https://lmsys.org/blog/2024-02-05-compressed-fsm/)).
-- [2024/01] SGLang provides up to **5x faster inference** with RadixAttention ([blog](https://lmsys.org/blog/2024-01-17-sglang/)).
-- [2024/01] SGLang powers the serving of the official **LLaVA v1.6** release demo ([usage](https://github.com/haotian-liu/LLaVA?tab=readme-ov-file#demo)).
 
-</details>
 
-## About
-SGLang is a fast serving framework for large language models and vision language models.
-It makes your interaction with models faster and more controllable by co-designing the backend runtime and frontend language.
-The core features include:
+## Installation
 
-- **Fast Backend Runtime**: Provides efficient serving with RadixAttention for prefix caching, zero-overhead CPU scheduler, continuous batching, token attention (paged attention), speculative decoding, tensor parallelism, chunked prefill, structured outputs, and quantization (FP8/INT4/AWQ/GPTQ).
-- **Flexible Frontend Language**: Offers an intuitive interface for programming LLM applications, including chained generation calls, advanced prompting, control flow, multi-modal inputs, parallelism, and external interactions.
-- **Extensive Model Support**: Supports a wide range of generative models (Llama, Gemma, Mistral, QWen, DeepSeek, LLaVA, etc.), embedding models (e5-mistral, gte, mcdse) and reward models (Skywork), with easy extensibility for integrating new models.
-- **Active Community**: SGLang is open-source and backed by an active community with industry adoption.
+Please use it on MI300X nodes.
 
-## Getting Started
-- [Install SGLang](https://docs.sglang.ai/start/install.html)
-- [Quick Start](https://docs.sglang.ai/backend/send_request.html)
-- [Backend Tutorial](https://docs.sglang.ai/backend/openai_api_completions.html)
-- [Frontend Tutorial](https://docs.sglang.ai/frontend/frontend.html)
-- [Contribution Guide](https://docs.sglang.ai/references/contribution_guide.html)
+```bash
+docker run -it --ipc=host --cap-add=SYS_PTRACE --network=host --device=/dev/kfd --device=/dev/dri -v /home/username/:/home/username/ -v /home/username/bind/sglang/:/sgl-workspace/sglang --security-opt seccomp=unconfined --group-add video --privileged lmsysorg/sglang:v0.4.5-rocm630
+```
 
-## Benchmark and Performance
-Learn more in the release blogs: [v0.2 blog](https://lmsys.org/blog/2024-07-25-sglang-llama3/), [v0.3 blog](https://lmsys.org/blog/2024-09-04-sglang-v0-3/), [v0.4 blog](https://lmsys.org/blog/2024-12-04-sglang-v0-4/)
 
-## Roadmap
-[Development Roadmap (2025 H1)](https://github.com/sgl-project/sglang/issues/4042)
 
-## Adoption and Sponsorship
-The project has been deployed to large-scale production, generating trillions of tokens every day.
-It is supported by the following institutions: AMD, Atlas Cloud, Baseten, Cursor, DataCrunch, Etched, Hyperbolic, Iflytek, Jam & Tea Studios, LinkedIn, LMSYS, Meituan, Nebius, Novita AI, NVIDIA, RunPod, Stanford, UC Berkeley, UCLA, xAI, and 01.AI.
+### Edits Codes Directly in Container
 
-<img src="https://raw.githubusercontent.com/sgl-project/sgl-learning-materials/main/slides/adoption.png" alt="logo" width="800" margin="10px"></img>
+When docker run, add this command, this will bind SGLang folder on you machine to runtime folder in container:
 
-## Contact Us
+ `-v /path/to/your/sglang/:/sgl-workspace/sglang`
 
-For enterprises interested in adopting or deploying SGLang at scale, including technical consulting, sponsorship opportunities, or partnership inquiries, please contact us at contact@sglang.ai.
 
-## Acknowledgment and Citation
-We learned the design and reused code from the following projects: [Guidance](https://github.com/guidance-ai/guidance), [vLLM](https://github.com/vllm-project/vllm), [LightLLM](https://github.com/ModelTC/lightllm), [FlashInfer](https://github.com/flashinfer-ai/flashinfer), [Outlines](https://github.com/outlines-dev/outlines), and [LMQL](https://github.com/eth-sri/lmql). Please cite the paper, [SGLang: Efficient Execution of Structured Language Model Programs](https://arxiv.org/abs/2312.07104), if you find the project useful.
+
+## Usage
+
+1. Start container
+
+2. Run entry scripts
+
+   Enter the entry scripts and make configurations and run. `misc\entry.py`
+
+### How to record token distribution and experts allocation?
+
+```python
+ENV = {
+    "custom_expert_allocation": "True",
+    "num_experts": "8", # this should match the number of physical experts if we use custom expert allocation
+    "log_all": "True", # whether to log expert allocation, token distribution info...
+    "log_dir": "/home/bingxche/log/mixtral8x7b_ep4_mixtral_dataset_15_prompts_8_custom_experts", # directory of log files
+    # file path of custom_expert_allocation.csv
+    "expert_allocation_file_path": "/home/bingxche/log/mixtral8x7b_ep4_mixtral_dataset_15_prompts_vanilla/moe_token_dist_eplb_8replicas_1groups_1nodes_4gpus/phy2log_8replicas_1groups_1nodes_4gpus.json",
+}
+```
+
+Make sure in `entry.py`, `log_all` is set to "True" and `log_dir` is set to the path you want to store the log files. 
+
+
+
+### How to use custom expert allocation?
+
+1. Calculate load balanced experts allocation using DeepSeek-EPLB through `misc\use_eplb.py`, you should already have the token distribution log folder(`log_dir` set in `entry.py`). Just change the `input_folder` to your token distribution log folder, and set parameters in `main()`
+
+   ```python
+   def main():
+       """Main entry point for the application."""
+       # Configuration parameters
+       input_folder = r"/home/bingxche/log/mixtral8x7b_ep4_mixtral_dataset_15_prompts_vanilla/moe_token_dist"
+       config = {
+           'num_replicas': 12,  # Number of physical experts
+           'num_groups': 1,    # Number of expert groups
+           'num_nodes': 1,     # Number of server nodes
+           'num_gpus': 4       # Number of GPUs
+       }
+       
+       # Run the EPLB algorithm
+       phy2log, log2phy, logcnt = run_eplb(input_folder, config)
+       
+       # Export results to JSON files
+       output_folder = f"{input_folder}_eplb_{config['num_replicas']}replicas_{config['num_groups']}groups_{config['num_nodes']}nodes_{config['num_gpus']}gpus"
+       export_results_to_json(output_folder, phy2log, log2phy, logcnt, config)
+   
+   ```
+
+   2. In `entry.py`, set `expert_allocation_file_path`  and set `"custom_expert_allocation": "True"`,  remember to set `num_experts` to number of physical experts accordingly. 
+
+      For example, although Mixtral 8x7b has 8 experts in each MoE layer, we can replicate some hotter experts to make load more balanced, let's say replicate it to 12 experts. So custom expert allocation list will be in size of [32, 12]  instead of [32, 8]
