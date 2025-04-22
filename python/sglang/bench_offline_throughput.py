@@ -198,31 +198,6 @@ class BenchArgs:
         return cls(**{attr: getattr(args, attr) for attr in attrs})
 
 
-def save_outputs_to_json(outputs):
-    result = []
-    for i, output in enumerate(outputs):
-        item = {}
-
-        # text
-        item["text"] = output.get("text", "")
-
-        # meta info
-        meta = output.get("meta_info", {})
-        item["id"] = meta.get("id", f"unknown_{i}")
-        item["prompt_tokens"] = meta.get("prompt_tokens", None)
-        item["completion_tokens"] = meta.get("completion_tokens", None)
-        item["cached_tokens"] = meta.get("cached_tokens", None)
-        item["e2e_latency"] = meta.get("e2e_latency", None)
-
-        result.append(item)
-
-    path = os.path.join(os.environ.get("LOG_DIR"), "model_output.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
-
-    logger.info(f"Saved {len(result)} entries to {path}")
-
-
 def throughput_test_once(
     backend_name: str,
     backend,
@@ -367,25 +342,34 @@ def throughput_test(
     input_requests = get_dataset(bench_args, tokenizer)
 
     warmup_requests = sample_random_requests(
-        input_len=256,
-        output_len=16,
-        num_prompts=min(bench_args.num_prompts, 16),
+        input_len=1,
+        output_len=1,
+        num_prompts=1,
         range_ratio=1.0,
         tokenizer=tokenizer,
         dataset_path=bench_args.dataset_path,
     )
 
     # Warm up
+    # it seems that warmup is a must before the profile, otherwise the profile will get stuck
     if not bench_args.skip_warmup:
         logging.info("\nWarmup...")
-        throughput_test_once(
-            backend_name=bench_args.backend,
-            backend=backend,
-            reqs=warmup_requests,
-            ignore_eos=not bench_args.disable_ignore_eos,
-            extra_request_body=extra_request_body,
-            profile=False,
-        )
+        # throughput_test_once(
+        #     backend_name=bench_args.backend,
+        #     backend=backend,
+        #     reqs=warmup_requests,
+        #     ignore_eos=not bench_args.disable_ignore_eos,
+        #     extra_request_body=extra_request_body,
+        #     profile=False,
+        # )
+
+        # dummy Warmup
+        backend.generate(prompt=[" "], sampling_params=[{
+            "temperature": 0,
+            "max_new_tokens": 1,
+            "ignore_eos": True
+        }])
+        
         time.sleep(0.5)
 
     logging.info("\nBenchmark...")
@@ -469,7 +453,7 @@ if __name__ == "__main__":
     os.environ["CUSTOM_EXPERT_ALLOCATION"] = "False"
     os.environ["MODEL_PATH"] = f"{server_args.model_path}"
     os.environ["LOG_ALL"] = "True"
-    os.environ["LOG_DIR"] = "/home/bingxche/log/mixtral8x7b_ep4_sharegpt_5_prompts_vanilla"
+    os.environ["LOG_DIR"] = "/home/bingxche/log/mixtral8x7b_ep4_sharegpt_10_prompts_vanilla"
     os.environ["NUM_EXPERTS"] = "8"
     profile_dir = os.path.join(os.environ.get("LOG_DIR"), "trace")
     os.environ["SGLANG_TORCH_PROFILER_DIR"] = profile_dir
@@ -477,9 +461,8 @@ if __name__ == "__main__":
     bench_args = BenchArgs(                        
         result_filename=f"{os.path.join(os.environ.get("LOG_DIR"), "results.json")}",                        
         dataset_name="sharegpt",                   
-        num_prompts=5,
+        num_prompts=10,
         profile=True,
-        skip_warmup=True,
     )
 
     logging.basicConfig(
