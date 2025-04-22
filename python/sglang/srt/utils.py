@@ -79,6 +79,24 @@ time_infos = {}
 HIP_FP8_E4M3_FNUZ_MAX = 224.0
 
 
+def load_expert_allocation_from_json() -> list:
+        """
+        Load expert allocation from:
+        JSON file specified by EXPERT_ALLOCATION_FILE_PATH env var
+        """
+            
+        # Load from JSON file if path is provided
+        json_path = os.environ.get("EXPERT_ALLOCATION_FILE_PATH", None)
+        if json_path and os.path.exists(json_path):
+            try:
+                import json
+                with open(json_path, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                import warnings
+                warnings.warn(f"Failed to load expert allocation from {json_path}: {e}")
+
+
 def get_bool_env_var(name: str, default: str = "false") -> bool:
     value = os.getenv(name, default)
     return value.lower() in ("true", "1")

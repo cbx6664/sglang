@@ -46,7 +46,10 @@ from sglang.srt.layers.vocab_parallel_embedding import (
 from sglang.srt.managers.schedule_batch import global_server_args_dict
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 from sglang.srt.model_loader.weight_utils import default_weight_loader
-from sglang.srt.utils import add_prefix
+from sglang.srt.utils import add_prefix, load_expert_allocation_from_json
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class MixtralMoE(nn.Module):
@@ -319,7 +322,8 @@ class MixtralForCausalLM(nn.Module):
             config.vocab_size, config.hidden_size, prefix=add_prefix("lm_head", prefix)
         )
         self.logits_processor = LogitsProcessor(config)
-        self.global_expert_allocation = [[3, 7, 0, 6, 7, 0, 1, 5, 2, 4, 5, 2], [0, 2, 6, 1, 2, 6, 7, 3, 5, 4, 3, 5], [4, 7, 3, 5, 7, 0, 6, 1, 3, 2, 1, 0], [5, 1, 7, 3, 0, 2, 6, 1, 7, 4, 0, 2], [5, 3, 0, 1, 3, 0, 7, 6, 4, 2, 6, 4], [2, 6, 7, 5, 6, 1, 4, 3, 7, 0, 3, 1], [3, 2, 7, 5, 2, 7, 6, 0, 4, 1, 0, 4], [6, 3, 1, 4, 3, 0, 2, 5, 1, 7, 5, 0], [0, 4, 1, 5, 4, 1, 2, 3, 6, 7, 3, 6], [7, 4, 3, 2, 0, 3, 6, 0, 1, 5, 5, 1], [5, 2, 0, 1, 2, 0, 7, 3, 4, 6, 3, 4], [1, 5, 6, 4, 0, 3, 7, 0, 6, 2, 2, 5], [2, 3, 4, 6, 5, 7, 0, 5, 4, 1, 1, 3], [2, 7, 4, 5, 7, 4, 6, 1, 0, 3, 1, 0], [1, 7, 3, 5, 7, 3, 4, 2, 0, 6, 2, 0], [1, 6, 2, 7, 6, 2, 0, 4, 5, 3, 4, 5], [4, 7, 6, 5, 7, 6, 0, 2, 1, 3, 2, 1], [7, 0, 4, 5, 0, 4, 6, 2, 1, 3, 2, 1], [3, 2, 6, 5, 2, 6, 7, 4, 0, 1, 4, 0], [7, 6, 2, 0, 5, 2, 3, 4, 6, 1, 4, 5], [0, 1, 7, 2, 1, 3, 4, 5, 7, 6, 5, 3], [6, 1, 7, 3, 1, 5, 4, 0, 7, 2, 0, 5], [0, 6, 3, 7, 6, 3, 4, 1, 5, 2, 1, 5], [0, 4, 5, 6, 4, 1, 3, 7, 5, 2, 7, 1], [1, 3, 7, 5, 3, 7, 0, 2, 6, 4, 2, 6], [2, 1, 5, 6, 1, 4, 3, 7, 5, 0, 7, 4], [5, 0, 7, 1, 0, 3, 4, 6, 7, 2, 6, 3], [7, 5, 4, 3, 5, 2, 0, 6, 4, 1, 6, 2], [4, 2, 3, 5, 2, 3, 6, 0, 1, 7, 0, 1], [5, 4, 0, 2, 4, 1, 7, 3, 0, 6, 3, 1], [7, 2, 0, 1, 2, 0, 6, 5, 3, 4, 4, 3], [6, 3, 4, 0, 3, 4, 1, 7, 5, 2, 7, 5]]
+        self.global_expert_allocation = load_expert_allocation_from_json()
+        # self.global_expert_allocation = [[5, 1, 2, 3, 6, 0, 4, 7], [3, 1, 6, 5, 2, 7, 0, 4], [4, 1, 0, 6, 5, 7, 3, 2], [4, 1, 0, 6, 2, 3, 7, 5], [3, 6, 1, 0, 5, 7, 4, 2], [6, 7, 2, 4, 5, 0, 1, 3], [4, 0, 6, 1, 3, 2, 5, 7], [2, 5, 0, 4, 7, 6, 1, 3], [3, 2, 0, 4, 7, 6, 5, 1], [1, 2, 3, 5, 0, 4, 7, 6], [2, 6, 1, 3, 4, 5, 7, 0], [1, 3, 2, 5, 6, 7, 0, 4], [1, 7, 0, 2, 5, 6, 3, 4], [1, 6, 0, 4, 2, 5, 3, 7], [4, 5, 0, 7, 3, 2, 1, 6], [0, 5, 1, 4, 2, 3, 7, 6], [6, 0, 5, 7, 3, 1, 2, 4], [4, 6, 5, 3, 7, 1, 2, 0], [1, 5, 7, 3, 0, 2, 4, 6], [7, 4, 5, 6, 1, 2, 0, 3], [6, 5, 0, 4, 2, 7, 3, 1], [0, 1, 3, 4, 7, 2, 6, 5], [6, 5, 1, 4, 7, 0, 2, 3], [1, 2, 6, 4, 3, 5, 0, 7], [5, 0, 2, 6, 1, 4, 3, 7], [6, 4, 5, 1, 3, 2, 0, 7], [6, 4, 2, 3, 0, 7, 5, 1], [1, 7, 4, 2, 6, 5, 0, 3], [3, 0, 4, 1, 7, 2, 6, 5], [7, 6, 5, 3, 4, 0, 1, 2], [4, 5, 7, 1, 6, 3, 0, 2], [7, 3, 2, 5, 4, 1, 6, 0]]
         self.use_custom_expert_allocation = os.environ.get("CUSTOM_EXPERT_ALLOCATION", "False") == "True"
 
     def forward(
@@ -380,6 +384,12 @@ class MixtralForCausalLM(nn.Module):
             else:
                 return None
                 
+        
+        if self.use_custom_expert_allocation:
+            logger.info(
+                f"Using custom expert allocation from {self.global_expert_allocation} for layer-wise expert allocation."
+            )
+        
         # record number of loops  
         num_weights_loop, num_stacked_params_mapping_loop, num_expert_params_mapping_loop = 0,0,0
         
