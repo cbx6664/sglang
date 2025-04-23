@@ -523,7 +523,7 @@ class EPMoE(torch.nn.Module):
             
             # record global expert_id
             import os 
-            output_dir = os.path.join(os.environ.get("LOG_DIR"), f"expert-gpu_allocation")
+            output_dir = os.path.join(os.environ.get("LOG_DIR"), f"expert_gpu_allocation")
             os.makedirs(output_dir, exist_ok=True) 
             csv_path = os.path.join(output_dir, f"rank_{self.tp_rank}_weights_loaded_before_converting_expert_id.csv")
             with open(csv_path, "a") as f:

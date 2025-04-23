@@ -322,9 +322,11 @@ class MixtralForCausalLM(nn.Module):
             config.vocab_size, config.hidden_size, prefix=add_prefix("lm_head", prefix)
         )
         self.logits_processor = LogitsProcessor(config)
-        self.global_expert_allocation = load_expert_allocation_from_json()
         # self.global_expert_allocation = [[5, 1, 2, 3, 6, 0, 4, 7], [3, 1, 6, 5, 2, 7, 0, 4], [4, 1, 0, 6, 5, 7, 3, 2], [4, 1, 0, 6, 2, 3, 7, 5], [3, 6, 1, 0, 5, 7, 4, 2], [6, 7, 2, 4, 5, 0, 1, 3], [4, 0, 6, 1, 3, 2, 5, 7], [2, 5, 0, 4, 7, 6, 1, 3], [3, 2, 0, 4, 7, 6, 5, 1], [1, 2, 3, 5, 0, 4, 7, 6], [2, 6, 1, 3, 4, 5, 7, 0], [1, 3, 2, 5, 6, 7, 0, 4], [1, 7, 0, 2, 5, 6, 3, 4], [1, 6, 0, 4, 2, 5, 3, 7], [4, 5, 0, 7, 3, 2, 1, 6], [0, 5, 1, 4, 2, 3, 7, 6], [6, 0, 5, 7, 3, 1, 2, 4], [4, 6, 5, 3, 7, 1, 2, 0], [1, 5, 7, 3, 0, 2, 4, 6], [7, 4, 5, 6, 1, 2, 0, 3], [6, 5, 0, 4, 2, 7, 3, 1], [0, 1, 3, 4, 7, 2, 6, 5], [6, 5, 1, 4, 7, 0, 2, 3], [1, 2, 6, 4, 3, 5, 0, 7], [5, 0, 2, 6, 1, 4, 3, 7], [6, 4, 5, 1, 3, 2, 0, 7], [6, 4, 2, 3, 0, 7, 5, 1], [1, 7, 4, 2, 6, 5, 0, 3], [3, 0, 4, 1, 7, 2, 6, 5], [7, 6, 5, 3, 4, 0, 1, 2], [4, 5, 7, 1, 6, 3, 0, 2], [7, 3, 2, 5, 4, 1, 6, 0]]
         self.use_custom_expert_allocation = os.environ.get("CUSTOM_EXPERT_ALLOCATION", "False") == "True"
+        if self.use_custom_expert_allocation:
+            self.global_expert_allocation = load_expert_allocation_from_json()
+
 
     def forward(
         self,
@@ -434,15 +436,27 @@ class MixtralForCausalLM(nn.Module):
                         continue
                     param = params_dict[name]
                     weight_loader = param.weight_loader
-                    weight_loader(
-                        param,
-                        loaded_weight,
-                        name,
-                        shard_id=shard_id,
-                        expert_id=expert_id,
-                        global_expert_gpu_allocation=self.global_expert_allocation[layer_id],
-                        use_custom_expert_allocation=self.use_custom_expert_allocation,
-                    )
+                    
+                    if self.use_custom_expert_allocation: 
+                        weight_loader(
+                            param,
+                            loaded_weight,
+                            name,
+                            shard_id=shard_id,
+                            expert_id=expert_id,
+                            global_expert_gpu_allocation=self.global_expert_allocation[layer_id],
+                            use_custom_expert_allocation=self.use_custom_expert_allocation,
+                        )
+                    else:
+                        weight_loader(
+                            param,
+                            loaded_weight,
+                            name,
+                            shard_id=shard_id,
+                            expert_id=expert_id,
+                            global_expert_gpu_allocation=[],
+                            use_custom_expert_allocation=self.use_custom_expert_allocation,
+                        )
                     break
                 else:
                     # Skip loading extra bias for GPTQ models.
