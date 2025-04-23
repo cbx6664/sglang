@@ -19,17 +19,21 @@ This repo is based on SGLang v0.4.5 https://github.com/sgl-project/sglang/tree/v
 
 Please use it on MI300X nodes.
 
+### Clone Repo
+
+clone this repo.
+
+### Run Container 
+
 ```bash
-docker run -it --ipc=host --cap-add=SYS_PTRACE --network=host --device=/dev/kfd --device=/dev/dri -v /home/username/:/home/username/ -v /home/username/bind/sglang/:/sgl-workspace/sglang --security-opt seccomp=unconfined --group-add video --privileged lmsysorg/sglang:v0.4.5-rocm630
+docker run -it --ipc=host --cap-add=SYS_PTRACE --network=host --device=/dev/kfd --device=/dev/dri -v /home/username/:/home/username/ -v /destination/of/your/sglang/:/sgl-workspace/sglang --security-opt seccomp=unconfined --group-add video --privileged lmsysorg/sglang:v0.4.5-rocm630
 ```
 
+**Remember to bind this repo and map it to the SGLang's runtime folder in `/sgl-workspace/sglang` **
 
+Using this command
 
-### Edits Codes Directly in Container
-
-When docker run, add this command, this will bind SGLang folder on you machine to runtime folder in container:
-
- `-v /path/to/your/sglang/:/sgl-workspace/sglang`
+`-v /destination/of/your/sglang/:/sgl-workspace/sglang`
 
 
 
@@ -83,6 +87,6 @@ Make sure in `entry.py`, `log_all` is set to "True" and `log_dir` is set to the 
    
    ```
 
-   2. In `entry.py`, set `expert_allocation_file_path`  and set `"custom_expert_allocation": "True"`,  remember to set `num_experts` to number of physical experts accordingly. 
+2. In `entry.py`, set `expert_allocation_file_path`  and set `"custom_expert_allocation": "True"`,  remember to set `num_experts` to number of physical experts accordingly. 
 
-      For example, although Mixtral 8x7b has 8 experts in each MoE layer, we can replicate some hotter experts to make load more balanced, let's say replicate it to 12 experts. So custom expert allocation list will be in size of [32, 12]  instead of [32, 8]
+   For example, although Mixtral 8x7b has 8 experts in each MoE layer, we can replicate some hotter experts to make load more balanced, let's say replicate it to 12 experts. So custom expert allocation list will be in size of [32, 12]  instead of [32, 8]
