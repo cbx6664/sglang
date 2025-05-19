@@ -73,7 +73,7 @@ _is_cuda = is_cuda()
 
 if _is_hip:
     from aiter import ActivationType
-    from aiter.fused_moe_bf16_asm import asm_moe, ck_moe_2stages, ck_moe_2stages_win4
+    from aiter.fused_moe_bf16_asm import asm_moe, ck_moe_2stages
     from aiter.ops.shuffle import shuffle_weight
 
 if not _is_cuda:

@@ -1142,7 +1142,7 @@ class ModelRunner:
         if not forward_batch.forward_mode.is_extend():
             print(
                 f"hi WARN! not using cuda graph for non-extend! "
-                f"{sum(forward_batch.global_num_tokens_cpu)=} "
+                # f"{sum(forward_batch.global_num_tokens_cpu)=} "
                 f"{forward_batch.can_run_dp_cuda_graph=} "
                 f"{self.server_args.disable_cuda_graph_padding=} "
                 f"{forward_batch.can_run_tbo=} "
