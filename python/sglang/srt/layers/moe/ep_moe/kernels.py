@@ -616,7 +616,12 @@ def grouped_gemm_triton_kernel(
             offs_ks = k_start // group_k
             a_scale = tl.load(a_scale_ptrs + offs_ks * as_stride_1)
             b_scale = tl.load(b_scale_ptrs + offs_ks * bs_stride_2)
-            accumulator += tl.dot(a_tile, b_tile.T) * a_scale * b_scale[None, :]
+            # Original line: accumulator += tl.dot(a_tile, b_tile.T) * a_scale * b_scale[None, :]
+            # Patched code:
+            a_tile_compute = a_tile.to(tl.bfloat16)
+            b_tile_compute = b_tile.to(tl.bfloat16)
+            dot_product_result = tl.dot(a_tile_compute, b_tile_compute.T)
+            accumulator += dot_product_result * a_scale * b_scale[None, :]
         else:
             accumulator = tl.dot(a_tile, b_tile.T, accumulator)
         a_ptr += BLOCK_SIZE_K
